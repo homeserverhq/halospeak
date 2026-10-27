@@ -7,6 +7,7 @@ services:
         ROCM_PYTORCH_BASE: "${ROCM_PYTORCH_BASE:-rocm/pytorch:rocm7.0_ubuntu22.04_py3.10_pytorch_release_2.8.0}"
         HSA_OVERRIDE_GFX_VERSION: "${HSA_OVERRIDE_GFX_VERSION:-}"
 
+    image: hshq/insanelyfastwhisper-gpu-dev:v4
     container_name: insanely-fast-whisper-rocm-dev
     restart: unless-stopped
 
@@ -37,6 +38,15 @@ services:
       WEBUI_PORT: "${DEV_WEBUI_PORT:-7862}"
       HSA_OVERRIDE_GFX_VERSION: "${HSA_OVERRIDE_GFX_VERSION:-}"
       MIOPEN_FIND_MODE: "${MIOPEN_FIND_MODE:-2}"
+      WHISPER_DEVICE: "0"
+      WHISPER_DTYPE: "float16"
+      DIARIZATION_DEVICE: "cuda"
+      DIARIZATION_PRELOAD_AUDIO: "true"
+      DIARIZATION_ALLOW_CPU_FALLBACK: "true"
+      DIARIZATION_DISABLE_MIOPEN: "true"
+      DIARIZATION_EMBEDDING_CLUSTERING: "true"
+      WHISPER_DIARIZATION_MODEL: "pyannote/speaker-diarization-community-1"
+      DEMUCS_DEFAULT: "false"
 
     ports:
       - "${DEV_API_PORT:-8889}:${DEV_API_PORT:-8889}"  # API port (dev)

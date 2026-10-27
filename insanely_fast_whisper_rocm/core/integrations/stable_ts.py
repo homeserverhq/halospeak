@@ -11,6 +11,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from insanely_fast_whisper_rocm.audio.dpdfnet_denoiser import (
+    is_dpdfnet_available,
+    register_dpdfnet_denoiser,
+)
 from insanely_fast_whisper_rocm.utils import constants
 from insanely_fast_whisper_rocm.utils.timestamp_utils import (
     normalize_timestamp_format,
@@ -21,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 try:
     import stable_whisper  # type: ignore
+
+    register_dpdfnet_denoiser()
 
     # Prefer explicit function if available; also support common alias 'postprocess'.
     _postprocess = getattr(stable_whisper, "postprocess_word_timestamps", None)
@@ -95,7 +101,8 @@ def stabilize_timestamps(
 
     Args:
         result: Base transcription result to refine.
-        demucs: Whether to run Demucs denoising.
+        demucs: Whether to run DPDFNet noise reduction. The flag name is kept
+            for CLI/API/WebUI compatibility.
         vad: Whether to run Voice Activity Detection.
         vad_threshold: VAD threshold when ``vad`` is True.
         progress_cb: Optional callback receiving human-readable status updates.
@@ -103,6 +110,9 @@ def stabilize_timestamps(
     Returns:
         A refined result dictionary. If stabilization fails, the original
         ``result`` is returned.
+
+    Raises:
+        RuntimeError: If noise reduction is requested but unavailable.
     """
     logger.info(
         "stabilize_timestamps called demucs=%s vad=%s vad_threshold=%s",
@@ -110,6 +120,12 @@ def stabilize_timestamps(
         vad,
         vad_threshold,
     )
+    if demucs and not is_dpdfnet_available():
+        raise RuntimeError(
+            "AI noise reduction is not available in this build. Install the "
+            "GPU runtime with sherpa-onnx and DPDFNet, or disable noise "
+            "reduction."
+        )
     if stable_whisper is None:
         logger.warning(
             "stable-whisper not available – returning original result unchanged"
@@ -145,11 +161,18 @@ def stabilize_timestamps(
         """
         return converted
 
-    # 1. Preferred paths: postprocess_* style APIs (avoid torchaudio.save)
-    for func_name, func in (
-        ("postprocess_word_timestamps", _postprocess),
-        ("postprocess", _postprocess_alt),
-    ):
+    # 1. Preferred paths: postprocess_* style APIs (avoid torchaudio.save).
+    # When noise reduction is requested, use transcribe_any below so the
+    # stable-whisper denoiser registry applies DPDFNet before alignment.
+    postprocess_paths = (
+        ()
+        if demucs
+        else (
+            ("postprocess_word_timestamps", _postprocess),
+            ("postprocess", _postprocess_alt),
+        )
+    )
+    for func_name, func in postprocess_paths:
         if func is None:
             continue
         try:
@@ -220,7 +243,7 @@ def stabilize_timestamps(
         refined = stable_whisper.transcribe_any(
             inference_func,
             audio=str(audio_path),
-            denoiser="demucs" if demucs else None,
+            denoiser="dpdfnet" if demucs else None,
             vad=vad,
             vad_threshold=vad_threshold,
             check_sorted=False,

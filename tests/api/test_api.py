@@ -110,7 +110,9 @@ DUMMY_WAV_HEADER = b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x
 
 
 def test_transcription_with_stabilization_options(
-    mock_orchestrator: MagicMock, client: TestClient
+    mock_orchestrator: MagicMock,
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that stabilization options are NOT passed to run_transcription(), but are handled separately.
 
@@ -118,6 +120,10 @@ def test_transcription_with_stabilization_options(
     which is called AFTER orchestrator.run_transcription(). The run_transcription()
     method should only receive the core ASR parameters.
     """
+    monkeypatch.setattr(
+        "insanely_fast_whisper_rocm.api.routes.DENOISE_AVAILABLE",
+        True,
+    )
     audio_file = io.BytesIO(DUMMY_WAV_HEADER)
     response = client.post(
         "/v1/audio/transcriptions",

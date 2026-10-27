@@ -185,7 +185,7 @@ DEFAULT_DIARIZE = os.getenv("DIARIZE_DEFAULT", "false").lower() == "true"
 DEFAULT_NUM_SPEAKERS = None  # None means auto-detect
 DEFAULT_DIARIZATION_DEVICE = os.getenv("DIARIZATION_DEVICE", "cpu")
 DEFAULT_DIARIZATION_MODEL = os.getenv(
-    "WHISPER_DIARIZATION_MODEL", "pyannote/speaker-diarization-3.1"
+    "WHISPER_DIARIZATION_MODEL", "pyannote/speaker-diarization-community-1"
 )
 HF_TOKEN = (
     os.getenv("HF_TOKEN")
@@ -207,6 +207,12 @@ DIARIZATION_PRELOAD_AUDIO = (
 DIARIZATION_ALLOW_CPU_FALLBACK = (
     os.getenv("DIARIZATION_ALLOW_CPU_FALLBACK", "true").lower() == "true"
 )  # Retry CPU diarization for known ROCm GPU compatibility failures
+DIARIZATION_DISABLE_MIOPEN = (
+    os.getenv("DIARIZATION_DISABLE_MIOPEN", "true").lower() == "true"
+)  # Use native PyTorch kernels for ROCm diarization to avoid MIOpen JIT bugs
+DIARIZATION_EMBEDDING_CLUSTERING = (
+    os.getenv("DIARIZATION_EMBEDDING_CLUSTERING", "true").lower() == "true"
+)  # Cluster per-segment speaker embeddings instead of relying on turn boundaries
 
 # File handling
 UPLOAD_DIR = os.getenv("WHISPER_UPLOAD_DIR", "temp_uploads")
@@ -337,7 +343,20 @@ INTERJECTION_WHITELIST = os.getenv("INTERJECTION_WHITELIST", "um,uh,ah,er,like")
 
 # --- Timestamp Stabilization defaults ---
 DEFAULT_STABILIZE = os.getenv("STABILIZE_DEFAULT", "false").lower() == "true"
-DEFAULT_DEMUCS = os.getenv("DEMUCS_DEFAULT", "false").lower() == "true"
+DEFAULT_DEMUCS = (
+    os.getenv("DENOISE_DEFAULT") or os.getenv("DEMUCS_DEFAULT", "false")
+).lower() == "true"
+DEMUCS_AVAILABLE = importlib.util.find_spec("demucs") is not None
+
+# --- Noise reduction (DPDFNet) ---
+DENOISE_BACKEND = os.getenv("DENOISE_BACKEND", "dpdfnet")
+DENOISE_MODEL_PATH = Path(os.getenv("DPDFNET_MODEL_PATH", "/app/models/dpdfnet8.onnx"))
+DENOISE_ATTENUATION_LIMIT_DB = float(os.getenv("DENOISE_ATTENUATION_LIMIT_DB", "12.0"))
+DENOISE_NUM_THREADS = int(os.getenv("DENOISE_NUM_THREADS", "1"))
+DENOISE_AVAILABLE = (
+    importlib.util.find_spec("sherpa_onnx") is not None and DENOISE_MODEL_PATH.exists()
+)
+
 DEFAULT_VAD = os.getenv("VAD_DEFAULT", "false").lower() == "true"
 DEFAULT_VAD_THRESHOLD = float(os.getenv("VAD_THRESHOLD_DEFAULT", "0.35"))
 

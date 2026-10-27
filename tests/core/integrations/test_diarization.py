@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 import torch
 
@@ -75,25 +78,93 @@ def test_diarize__raises_when_hf_token_missing() -> None:
             diarize(result, audio_path="/fake.wav", hf_token="")
 
 
+def test_diarize__falls_back_to_cpu_when_cuda_unavailable() -> None:
+    """CUDA requests fall back to CPU when running on a CPU-only runtime."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    annotation = MagicMock()
+    annotation.itertracks.return_value = [
+        (MagicMock(start=0.0, end=5.0), None, "SPEAKER_00"),
+    ]
+    output = MagicMock(spec=[])
+    output.speaker_diarization = annotation
+    pipeline = MagicMock(return_value=output)
+    pipeline.to.return_value = pipeline
+
+    with (
+        patch.object(diarization, "Pipeline", MagicMock()),
+        patch.object(
+            diarization, "_get_or_create_pipeline", return_value=pipeline
+        ) as get_pipeline,
+        patch.object(diarization, "_preload_audio_as_waveform", return_value={}),
+        patch("torch.cuda.is_available", return_value=False),
+        patch.object(diarization, "invalidate_gpu_cache") as invalidate,
+    ):
+        out = diarize(
+            _sample_result(),
+            audio_path="fake.wav",
+            hf_token="tok",
+            device="cuda",
+        )
+
+    assert out["diarized"] is True
+    get_pipeline.assert_called_once_with(
+        diarization.DEFAULT_DIARIZATION_MODEL,
+        "cpu",
+        "tok",
+        reserve=True,
+    )
+    invalidate.assert_not_called()
+
+
+def test_diarize__raises_when_cuda_unavailable_and_fallback_disabled() -> None:
+    """CUDA-unavailable errors are explicit when fallback is disabled."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    with (
+        patch.object(diarization, "Pipeline", MagicMock()),
+        patch.object(diarization, "DIARIZATION_ALLOW_CPU_FALLBACK", False),
+        patch("torch.cuda.is_available", return_value=False),
+    ):
+        with pytest.raises(DiarizationError) as exc_info:
+            diarize(
+                _sample_result(),
+                audio_path="fake.wav",
+                hf_token="tok",
+                device="cuda",
+            )
+
+    assert exc_info.value.reason == "device_unavailable"
+
+
 # ---------------------------------------------------------------------------
-# diarize() — 403 error (gated model license)
+# diarize() — gated model authentication/license errors
 # ---------------------------------------------------------------------------
 
 
-def test_diarize__raises_on_403_license_not_accepted() -> None:
-    """diarize() raises DiarizationError with license link on HTTP 403."""
+@pytest.mark.parametrize("status_code", [401, 403])
+def test_diarize__raises_on_gated_model_auth_errors(status_code: int) -> None:
+    """diarize() reports gated-model auth/license errors with repo links."""
     result = _sample_result()
     mock_pipeline_cls = MagicMock()
-    load_exc = Exception("forbidden")
-    load_exc.status_code = 403  # type: ignore[attr-defined]
+    load_exc = Exception(
+        "Cannot access gated repo for "
+        "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    )
+    load_exc.status_code = status_code  # type: ignore[attr-defined]
     mock_pipeline_cls.from_pretrained.side_effect = load_exc
 
     with patch(
         "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
         mock_pipeline_cls,
     ):
-        with pytest.raises(DiarizationError, match=r"huggingface\.co"):
+        with pytest.raises(
+            DiarizationError,
+            match=r"speaker-diarization-community-1",
+        ) as exc_info:
             diarize(result, audio_path="/fake.wav", hf_token="tok")
+
+    assert exc_info.value.reason == "license_not_accepted"
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +485,7 @@ def test_diarize__retries_cpu_on_rocm_miopen_error(
             "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
+        patch("torch.cuda.is_available", return_value=True),
         patch("torchaudio.load") as mock_load,
     ):
         mock_load.return_value = (MagicMock(shape=torch.Size([1, 48000])), 16000)
@@ -454,6 +526,7 @@ def test_diarize__does_not_retry_cpu_when_fallback_disabled() -> None:
             "insanely_fast_whisper_rocm.core.integrations.diarization.DIARIZATION_ALLOW_CPU_FALLBACK",
             False,
         ),
+        patch("torch.cuda.is_available", return_value=True),
         patch("torchaudio.load") as mock_load,
     ):
         mock_load.return_value = (MagicMock(shape=torch.Size([1, 48000])), 16000)
@@ -888,7 +961,7 @@ def test_preload_audio_as_waveform__uses_ffmpeg_decode_for_m4a(
     with (
         patch(
             "torchaudio.load",
-            side_effect=[RuntimeError("Format not recognised"), (fake_waveform, 16000)],
+            return_value=(fake_waveform, 16000),
         ),
         patch("subprocess.run", return_value=mock_completed) as mock_run,
         patch("tempfile.NamedTemporaryFile") as mock_tmp,
@@ -977,6 +1050,7 @@ def test_diarize__always_releases_gpu_cache(outcome: str) -> None:
         patch.object(diarization, "_preload_audio_as_waveform", return_value={}),
         patch.object(diarization, "DIARIZATION_PRELOAD_AUDIO", True),
         patch.object(diarization, "DIARIZATION_ALLOW_CPU_FALLBACK", True),
+        patch("torch.cuda.is_available", return_value=True),
         patch.object(diarization, "invalidate_gpu_cache"),
         patch.object(diarization, "_clear_gpu_diarization_cache") as cleanup,
     ):
@@ -994,3 +1068,174 @@ def test_diarize__always_releases_gpu_cache(outcome: str) -> None:
                 )
         cleanup.assert_called_once_with()
         assert cpu.call_count == (1 if outcome == "cpu_failure" else 0)
+
+
+def _fake_torch(hip: str | None, cudnn_enabled: bool = True) -> SimpleNamespace:
+    """Return a minimal torch module double for kernel-mode tests."""
+    return SimpleNamespace(
+        version=SimpleNamespace(hip=hip),
+        backends=SimpleNamespace(
+            cudnn=SimpleNamespace(enabled=cudnn_enabled),
+        ),
+    )
+
+
+def test_rocm_native_diarization_kernels__disables_and_restores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ROCm workaround disables MIOpen only inside its context."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    fake_torch = _fake_torch("7.0.0-test")
+    monkeypatch.setattr(diarization, "DIARIZATION_DISABLE_MIOPEN", True)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    with diarization._rocm_native_diarization_kernels(True):  # noqa: SLF001
+        assert fake_torch.backends.cudnn.enabled is False
+
+    assert fake_torch.backends.cudnn.enabled is True
+
+
+def test_rocm_native_diarization_kernels__noop_on_non_rocm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The workaround leaves CUDA/MIOpen untouched outside ROCm."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    fake_torch = _fake_torch(None)
+    monkeypatch.setattr(diarization, "DIARIZATION_DISABLE_MIOPEN", True)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    with diarization._rocm_native_diarization_kernels(True):  # noqa: SLF001
+        assert fake_torch.backends.cudnn.enabled is True
+
+    assert fake_torch.backends.cudnn.enabled is True
+
+
+def test_diarize__uses_exclusive_annotation_and_returns_embeddings() -> None:
+    """Exclusive turns are aligned and speaker embeddings are returned."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    regular = MagicMock()
+    regular.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
+    regular.itertracks.return_value = [
+        (MagicMock(start=0.0, end=10.0), None, "SPEAKER_00"),
+    ]
+    exclusive = MagicMock()
+    exclusive.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
+    exclusive.itertracks.return_value = [
+        (MagicMock(start=0.0, end=5.0), None, "SPEAKER_00"),
+        (MagicMock(start=5.0, end=10.0), None, "SPEAKER_01"),
+    ]
+    output = SimpleNamespace(
+        speaker_diarization=regular,
+        exclusive_speaker_diarization=exclusive,
+        speaker_embeddings=np.array([[1.0, 0.0], [0.0, 1.0]]),
+    )
+    pipeline = MagicMock(return_value=output)
+
+    result = {
+        "chunks": [
+            {"timestamp": [0.0, 5.0], "text": "first"},
+            {"timestamp": [5.0, 10.0], "text": "second"},
+        ]
+    }
+
+    with (
+        patch.object(diarization, "Pipeline", MagicMock()),
+        patch.object(diarization, "_get_or_create_pipeline", return_value=pipeline),
+        patch.object(diarization, "_preload_audio_as_waveform", return_value={}),
+        patch.object(diarization, "DIARIZATION_PRELOAD_AUDIO", True),
+        patch.object(diarization, "invalidate_gpu_cache"),
+    ):
+        out = diarization.diarize(
+            result,
+            audio_path="audio.mp3",
+            hf_token="test",
+            device="cpu",
+            return_embeddings=True,
+        )
+
+    assert [chunk["speaker"] for chunk in out["chunks"]] == [
+        "SPEAKER_00",
+        "SPEAKER_01",
+    ]
+    assert out["speaker_embeddings"] == {
+        "SPEAKER_00": [1.0, 0.0],
+        "SPEAKER_01": [0.0, 1.0],
+    }
+
+
+def test_cluster_embedding_vectors__separates_two_groups() -> None:
+    """KMeans clusters normalized embeddings into the expected groups."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    vectors = [
+        [1.0, 0.0],
+        [0.9, 0.1],
+        [0.0, 1.0],
+        [0.1, 0.9],
+    ]
+
+    cluster_ids, centroids = diarization._cluster_embedding_vectors(  # noqa: SLF001
+        vectors,
+        2,
+    )
+
+    assert len(cluster_ids) == 4
+    assert len(set(cluster_ids[:2])) == 1
+    assert len(set(cluster_ids[2:])) == 1
+    assert cluster_ids[0] != cluster_ids[2]
+    assert len(centroids) == 2
+    assert all(len(vector) == 2 for vector in centroids.values())
+
+
+def test_diarize__uses_segment_embedding_clustering() -> None:
+    """Segment embedding clustering assigns speakers and returns centroids."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    regular = MagicMock()
+    regular.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
+    regular.itertracks.return_value = []
+    exclusive = MagicMock()
+    exclusive.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
+    exclusive.itertracks.return_value = []
+    output = SimpleNamespace(
+        speaker_diarization=regular,
+        exclusive_speaker_diarization=exclusive,
+        speaker_embeddings=None,
+    )
+    pipeline = MagicMock(return_value=output)
+    result = {
+        "chunks": [
+            {"timestamp": [0.0, 5.0], "text": "first"},
+            {"timestamp": [5.0, 10.0], "text": "second"},
+        ]
+    }
+
+    with (
+        patch.object(diarization, "Pipeline", MagicMock()),
+        patch.object(diarization, "_get_or_create_pipeline", return_value=pipeline),
+        patch.object(diarization, "_preload_audio_as_waveform", return_value={}),
+        patch.object(diarization, "DIARIZATION_PRELOAD_AUDIO", True),
+        patch.object(diarization, "DIARIZATION_EMBEDDING_CLUSTERING", True),
+        patch.object(
+            diarization,
+            "_compute_item_embeddings",
+            return_value=[[1.0, 0.0], [0.0, 1.0]],
+        ),
+        patch.object(diarization, "invalidate_gpu_cache"),
+    ):
+        out = diarization.diarize(
+            result,
+            audio_path="audio.mp3",
+            hf_token="test",
+            device="cpu",
+            return_embeddings=True,
+        )
+
+    speakers = [chunk["speaker"] for chunk in out["chunks"]]
+    assert speakers[0] == "SPEAKER_00"
+    assert speakers[1] == "SPEAKER_01"
+    assert set(out["speaker_embeddings"]) == {"SPEAKER_00", "SPEAKER_01"}
+    assert all(len(vector) == 2 for vector in out["speaker_embeddings"].values())

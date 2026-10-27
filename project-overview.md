@@ -522,14 +522,14 @@ The API endpoints have distinct parameters. Core model settings (`model`, `devic
   - `timestamp_type`: The granularity of the timestamps (`chunk` or `word`). Defaults to `chunk`.
   - `language`: The language of the audio. If omitted, the model will auto-detect the language.
   - `stabilize`: `bool` - Enable timestamp stabilization using `stable-ts`. Defaults to `False`.
-  - `demucs`: `bool` - Enable Demucs noise reduction before transcription. Defaults to `False`.
+  - `demucs`: `bool` - Enable DPDFNet noise reduction before stabilization. The flag name is retained for compatibility. Defaults to `False`.
   - `vad`: `bool` - Enable Silero VAD to filter out silent parts of the audio. Defaults to `False`.
   - `vad_threshold`: `float` - The threshold for VAD. Defaults to `0.35`.
 - `/v1/audio/translations`:
   - `file`: The audio file to translate (required).
   - `response_format`: The desired output format (`json`, `verbose_json`, `text`, `srt`, `vtt`). Defaults to `json`.
   - `stabilize`: `bool` - Enable timestamp stabilization using `stable-ts`. Defaults to `False`.
-  - `demucs`: `bool` - Enable Demucs noise reduction before transcription. Defaults to `False`.
+  - `demucs`: `bool` - Enable DPDFNet noise reduction before stabilization. The flag name is retained for compatibility. Defaults to `False`.
   - `vad`: `bool` - Enable Silero VAD to filter out silent parts of the audio. Defaults to `False`.
   - `vad_threshold`: `float` - The threshold for VAD. Defaults to `0.35`.
   - `timestamp_type`: The granularity of the timestamps (`chunk` or `word`). Defaults to `chunk`.
@@ -540,7 +540,7 @@ The API endpoints have distinct parameters. Core model settings (`model`, `devic
 The Gradio WebUI offers an interactive, browser-based experience—ideal for batch processing multiple audio/video files—and now **parity with the CLI for advanced audio-preprocessing features**:
 
 - **Word-level timestamp stabilization** (`--stabilize`, powered by stable-ts)
-- **Demucs noise reduction** (`--demucs`)
+- **DPDFNet noise reduction** (`--demucs` compatibility flag)
 - **Voice Activity Detection** (`--vad`, with adjustable `--vad-threshold`)
 
 **Launch Options:**
@@ -1189,7 +1189,7 @@ When modifying segmentation logic:
 ### Related Modules
 
 - **`core/integrations/stable_ts.py`**: Timestamp stabilization for improved word alignment
-- **`audio/processing.py`**: Audio preprocessing (VAD, Demucs) affects word timing quality
+- **`audio/processing.py`**: Audio preprocessing (VAD, noise reduction) affects word timing quality
 - **`cli/commands.py`**: CLI flags like `--stabilize` influence upstream word quality
 - **`api/routes.py`**: API endpoints expose `timestamp_type` and stabilization options
 
@@ -1204,7 +1204,7 @@ Use `--quiet` to minimize console output. In quiet mode, the CLI shows only:
 
 All intermediate INFO logs and auxiliary messages are suppressed. When
 timestamp stabilization is enabled (via `--stabilize`) and optional post-
-processing is active (Demucs/VAD), quiet mode also suppresses third-party
+processing is active (DPDFNet/VAD), quiet mode also suppresses third-party
 progress bars and HIP/MIOpen warnings emitted by underlying libraries.
 
 Notes:

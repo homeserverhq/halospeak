@@ -1,0 +1,62 @@
+services:
+  insanely-fast-whisper-rocm-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+
+    image: hshq/insanelyfastwhisper-cpu:v1
+    container_name: insanely-fast-whisper-rocm-cpu
+    restart: unless-stopped
+
+    stdin_open: true
+    tty: true
+
+    env_file:
+      - "$HOME/.config/insanely-fast-whisper-rocm/.env"
+
+    environment:
+      # CPU ports are configurable to avoid clashing with the ROCm containers.
+      API_PORT: "${CPU_API_PORT:-8890}"
+      WEBUI_PORT: "${CPU_WEBUI_PORT:-7863}"
+      WHISPER_DEVICE: "cpu"
+      WHISPER_DTYPE: "float32"
+      DIARIZATION_DEVICE: "cpu"
+      DIARIZATION_PRELOAD_AUDIO: "true"
+      DIARIZATION_ALLOW_CPU_FALLBACK: "true"
+      WHISPER_DIARIZATION_MODEL: "${CPU_DIARIZATION_MODEL:-pyannote/speaker-diarization-community-1}"
+      DEMUCS_DEFAULT: "false"
+
+    ports:
+      - "${CPU_API_PORT:-8890}:${CPU_API_PORT:-8890}"
+      - "${CPU_WEBUI_PORT:-7863}:${CPU_WEBUI_PORT:-7863}"
+
+    volumes:
+      - "./transcripts:/app/transcripts"
+      - "./transcripts-txt:/app/transcripts-txt"
+      - "./transcripts-srt:/app/transcripts-srt"
+      - "./temp_uploads:/app/temp_uploads"
+      - "$HOME/.cache/huggingface/hub:/root/.cache/huggingface/hub"
+
+    #################################################
+    ## Default: Gradio WebUI without debug logging ##
+    #################################################
+    command: ["python", "-m", "insanely_fast_whisper_rocm.webui"]
+    ##############################################
+    ## Alternative commands (uncomment to use): ##
+    ##############################################
+    #
+    # API only:
+    # command: ["python", "-m", "insanely_fast_whisper_rocm"]
+    #
+    # CLI transcription example:
+    # command:
+    #   [
+    #     "python",
+    #     "-m",
+    #     "insanely_fast_whisper_rocm.cli",
+    #     "transcribe",
+    #     "tests/data/conversion-test-file.mp3",
+    #     "--diarize",
+    #     "--diarization-device",
+    #     "cpu",
+    #   ]

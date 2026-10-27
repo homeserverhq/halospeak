@@ -103,7 +103,13 @@ class TestCreateStabilizationUI:
 
     def test_create_stabilization_ui__uses_custom_defaults(self) -> None:
         """Test that _create_stabilization_ui uses provided defaults."""
-        with gr.Blocks():
+        with (
+            patch(
+                "insanely_fast_whisper_rocm.webui.ui.DENOISE_AVAILABLE",
+                True,
+            ),
+            gr.Blocks(),
+        ):
             stabilize, demucs, vad, vad_threshold = _create_stabilization_ui(
                 default_stabilize=True,
                 default_demucs=True,

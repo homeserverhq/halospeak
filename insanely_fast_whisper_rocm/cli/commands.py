@@ -157,6 +157,9 @@ def _run_task(*, task: str, audio_file: Path, **kwargs: Any) -> None:  # noqa: A
     """Execute *task* ("transcribe" or "translate") on *audio_file*.
 
     All CLI flags arrive in **kwargs.
+
+    Raises:
+        click.UsageError: If an option is unavailable in the current build.
     """
     start_time = time.time()
     logger.debug(
@@ -190,6 +193,12 @@ def _run_task(*, task: str, audio_file: Path, **kwargs: Any) -> None:  # noqa: A
     diarization_device: str = kwargs.pop(
         "diarization_device", constants.DEFAULT_DIARIZATION_DEVICE
     )
+
+    if demucs and not constants.DENOISE_AVAILABLE:
+        raise click.UsageError(
+            "AI noise reduction is not available in this build. Install the "
+            "runtime with sherpa-onnx and DPDFNet, or disable noise reduction."
+        )
 
     debug: bool = kwargs.pop("debug", False)
     quiet: bool = kwargs.pop("quiet", False)

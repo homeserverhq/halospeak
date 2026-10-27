@@ -46,7 +46,7 @@ A comprehensive Whisper-based speech recognition toolkit designed specifically t
 - **Standardized Filenames**: Consistent, timestamped output naming across all interfaces
 - **Readable Subtitles (SRT/VTT)**: Advanced segmentation pipeline that creates well-formed, readable subtitles by default, respecting line length, duration, and characters-per-second (CPS) constraints. This can be toggled with the `USE_READABLE_SUBTITLES` environment variable.
 - **Word-level Timestamp Stabilization (CLI, API & WebUI)**: Optional `--stabilize` flag (powered by [stable-ts](https://github.com/jianfch/stable-ts)) greatly refines chunk timestamps, producing accurate word-aligned SRT/VTT output
-- **Noise Reduction & Voice Activity Detection (CLI, API & WebUI)**: Optional `--demucs` and `--vad` flags provide Demucs-based denoising and intelligent speech-region detection (adjustable `--vad-threshold`) for cleaner, more accurate transcripts
+- **Noise Reduction & Voice Activity Detection (CLI, API & WebUI)**: Optional `--demucs` compatibility flag now runs Apache-2.0 DPDFNet speech enhancement, and `--vad` provides intelligent speech-region detection (adjustable `--vad-threshold`) for cleaner, more accurate transcripts. Demucs itself is excluded because its pretrained weights are research-only.
 
 ______________________________________________________________________
 
@@ -101,6 +101,115 @@ The recommended way to run the application is using Docker Compose:
    ```bash
    docker compose up --build -d
    ```
+
+### CPU-only production build
+
+The CPU image removes all ROCm, Triton, ROCm ONNX Runtime, and Demucs
+dependencies. It is intended for CPU inference and distribution on hardware
+without an AMD GPU. The already-built CPU image remains unchanged; new GPU
+images additionally include Apache-2.0 DPDFNet noise reduction.
+
+```bash
+docker compose -f docker-compose.cpu.yaml up --build -d
+```
+
+Defaults for this profile:
+
+- API port: `8890`
+- WebUI port: `7863`
+- `WHISPER_DEVICE=cpu`
+- `WHISPER_DTYPE=float32`
+- `DIARIZATION_DEVICE=cpu`
+- Diarization model: `pyannote/speaker-diarization-community-1`
+
+Override the CPU ports with `CPU_API_PORT` / `CPU_WEBUI_PORT` in your shell or
+the project-level `.env` used by Compose. The compose file also overrides any
+stale `cuda` values in your host `.env`, so an existing configuration cannot
+accidentally force CPU-only diarization onto CUDA.
+
+#### Diarization licensing and Hugging Face access
+
+The default diarization model, `pyannote/speaker-diarization-community-1`, is
+licensed **CC-BY-4.0**. Commercial use is permitted with attribution. Accept the
+model terms at:
+
+<https://huggingface.co/pyannote/speaker-diarization-community-1>
+
+Then set `HF_TOKEN` in your host configuration file. The token is only required
+for the gated diarization model; the default Whisper model is not gated.
+
+Attribution and third-party notices are included in
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md). The CPU image also
+generates `/app/THIRD_PARTY_LICENSES.md` from the installed package set.
+
+#### Noise reduction
+
+The GPU image bundles Apache-2.0 [DPDFNet](https://github.com/ceva-ip/DPDFNet)
+at `/app/models/dpdfnet8.onnx`. The historical `--demucs` flag now selects this
+speech-enhancement backend. It reduces background noise but does not isolate
+vocals from music like Demucs.
+
+Demucs itself is not installed. Its source code is MIT-licensed, but the
+upstream pretrained weights are research-only. The CPU image does not include
+DPDFNet, so `--demucs` remains unavailable there unless you add
+`sherpa-onnx` and the model.
+
+> [!NOTE]
+> `pip check` can report missing optional `torchcodec`, `triton`, and `demucs`
+> dependencies. This is intentional: pyannote uses the in-memory waveform
+> preload path instead of TorchCodec, Whisper imports Triton only for CUDA
+> paths, and Demucs is excluded for licensing reasons.
+
+### GPU build with diarization and DPDFNet
+
+The GPU production image uses the slim ROCm-wheel route: `python:3.10-slim` plus
+the ROCm PyTorch wheels from AMD's manylinux repository. It does not need ROCm
+apt packages and is substantially smaller than the `rocm/pytorch` base image.
+
+```bash
+docker compose up --build -d
+```
+
+The GPU compose profile explicitly sets:
+
+```dotenv
+WHISPER_DEVICE=0
+WHISPER_DTYPE=float16
+DIARIZATION_DEVICE=cuda
+DIARIZATION_PRELOAD_AUDIO=true
+DIARIZATION_ALLOW_CPU_FALLBACK=true
+WHISPER_DIARIZATION_MODEL=pyannote/speaker-diarization-community-1
+MIOPEN_FIND_MODE=2
+DEMUCS_DEFAULT=false
+```
+
+`HSA_OVERRIDE_GFX_VERSION` remains configurable. Use the value matching your GPU
+first; for gfx1151, try `11.5.1`, and fall back to `11.0.0` if MIOpen or
+diarization errors occur.
+
+For GPU diarization, accept the community-1 license and set `HF_TOKEN` as
+described above. The GPU image includes the DPDFNet model and generates
+`/app/THIRD_PARTY_LICENSES.md`.
+
+Speaker labels are assigned by clustering per-segment speaker embeddings. The
+speaker count still comes from pyannote auto-detection; no fixed count is
+forced. This avoids relying on pyannote turn boundaries for short or rapid
+speaker changes.
+
+If diarization logs show `MIOpenBatchNormFwdTrainSpatial` or
+`MIOpenDropoutHIP.cpp` errors, keep `DIARIZATION_DISABLE_MIOPEN=true`. This
+uses native PyTorch kernels for diarization and avoids MIOpen JIT failures on
+gfx1151/ROCm 7.0 while remaining substantially faster than CPU fallback.
+
+If the slim ROCm route proves unreliable on your GPU, switch the `Dockerfile`
+base back to `rocm/pytorch` while keeping the trimmed `requirements-gpu.txt`.
+
+#### PyTorch and Intel MKL
+
+The official PyTorch CPU wheel uses Intel MKL, which is redistributable under
+the Intel Simplified Software License but is not OSI-approved. The MKL notice is
+included in `THIRD_PARTY_NOTICES.md`. If your policy requires an entirely
+OSI-approved binary stack, use an OpenBLAS-based PyTorch build instead.
 
 ### Alternative: Local Development with PDM
 
@@ -161,10 +270,17 @@ Key configuration options include:
 - `WHISPER_MODEL`: The Whisper model to use (e.g., `openai/whisper-large-v3`).
 - `WHISPER_DEVICE`: The device to run on (`0` for CUDA, `mps` for Apple Silicon, `cpu`).
 - `USE_READABLE_SUBTITLES`: `true` or `false`. Enables the new readable subtitle segmentation pipeline. Defaults to `true`.
+- `WHISPER_DIARIZATION_MODEL`: Diarization pipeline. Defaults to `pyannote/speaker-diarization-community-1` (CC-BY-4.0; license acceptance and `HF_TOKEN` required).
 - `DIARIZATION_DEVICE`: The pyannote diarization device. Keep `cpu` for maximum compatibility, or set `cuda` for faster ROCm GPU diarization after validating your GPU stack.
 - `DIARIZATION_PRELOAD_AUDIO`: Keep `true` on ROCm. The app preloads audio with torchaudio/ffmpeg and passes a waveform to pyannote instead of relying on TorchCodec.
-- `DIARIZATION_ALLOW_CPU_FALLBACK`: Keep `true` unless benchmarking strict GPU-only behavior. Known ROCm/MIOpen GPU failures retry diarization on CPU.
+- `DIARIZATION_ALLOW_CPU_FALLBACK`: Keep `true` unless benchmarking strict GPU-only behavior. Known ROCm/MIOpen GPU failures and unavailable CUDA devices retry diarization on CPU.
 - `DIARIZATION_FFMPEG_TIMEOUT_SECONDS`: Timeout for ffmpeg audio decode during diarization preload. Defaults to `30`.
+- `DIARIZATION_DISABLE_MIOPEN`: Uses native PyTorch kernels for ROCm diarization to avoid MIOpen JIT failures. Defaults to `true` on ROCm.
+- `DIARIZATION_EMBEDDING_CLUSTERING`: Clusters per-segment speaker embeddings for transcript alignment while taking the speaker count from pyannote auto-detection. Defaults to `true`.
+- `DENOISE_DEFAULT`: Enables DPDFNet noise reduction by default. The legacy `DEMUCS_DEFAULT` name is still accepted.
+- `DPDFNET_MODEL_PATH`: Path to `dpdfnet8.onnx`. Defaults to `/app/models/dpdfnet8.onnx` in the GPU image.
+- `DENOISE_ATTENUATION_LIMIT_DB`: DPDFNet attenuation limit. Defaults to `12.0`.
+- `DENOISE_NUM_THREADS`: CPU threads for DPDFNet. Defaults to `1`.
 
 > [!NOTE]
 > **Attention implementation:**
@@ -264,6 +380,7 @@ Key Endpoints:
 
 - `/v1/audio/transcriptions`: Transcribe audio in its source language.
 - `/v1/audio/translations`: Translate audio to English.
+- `/asr`: WhisperX/whisper-asr-webservice-compatible endpoint for Speakr and similar clients.
 
 For detailed launch options and API parameters, see [`project-overview.md`](./project-overview.md#api-server-details).
 
@@ -310,7 +427,7 @@ For detailed commands and options, see [`project-overview.md`](./project-overvie
 
 #### Quiet mode (`--quiet`)
 
-Use `--quiet` to minimize console output. In quiet mode, only the Rich progress bar (when attached to a TTY) and the final saved-path line(s) are shown. Intermediate logs/messages are suppressed. This also hides third-party Demucs/VAD progress and HIP/MIOpen warnings when stabilization is enabled. See the CLI section in [`project-overview.md`](./project-overview.md#quiet-mode---quiet) for details.
+Use `--quiet` to minimize console output. In quiet mode, only the Rich progress bar (when attached to a TTY) and the final saved-path line(s) are shown. Intermediate logs/messages are suppressed. This also hides third-party DPDFNet/VAD progress and HIP/MIOpen warnings when stabilization is enabled. See the CLI section in [`project-overview.md`](./project-overview.md#quiet-mode---quiet) for details.
 
 ### Output Files and Filename Conventions
 
@@ -352,7 +469,7 @@ The API endpoints have distinct parameters. Core model settings (`model`, `devic
 - `timestamp_type`: The granularity of the timestamps (`chunk` or `word`). If you provide `text` here, the response will be plain text instead of JSON. Defaults to `chunk`.
 - `language`: The language of the audio. If omitted, the model will auto-detect the language.
 - `stabilize`: `bool` - Enable timestamp stabilization using `stable-ts`. Defaults to `False`.
-- `demucs`: `bool` - Enable Demucs noise reduction before transcription. Defaults to `False`.
+- `demucs`: `bool` - Enable DPDFNet noise reduction before stabilization. The flag name is retained for compatibility. Defaults to `False`.
 - `vad`: `bool` - Enable Silero VAD to filter out silent parts of the audio. Defaults to `False`.
 - `vad_threshold`: `float` - The threshold for VAD. Defaults to `0.35`.
 
@@ -363,9 +480,46 @@ The API endpoints have distinct parameters. Core model settings (`model`, `devic
 - `timestamp_type`: The granularity of the timestamps (`chunk` or `word`). Defaults to `chunk`.
 - `language`: The language of the audio. If omitted, the model will auto-detect the language.
 - `stabilize`: `bool` - Enable timestamp stabilization using `stable-ts`. Defaults to `False`.
-- `demucs`: `bool` - Enable Demucs noise reduction before transcription. Defaults to `False`.
+- `demucs`: `bool` - Enable DPDFNet noise reduction before stabilization. The flag name is retained for compatibility. Defaults to `False`.
 - `vad`: `bool` - Enable Silero VAD to filter out silent parts of the audio. Defaults to `False`.
 - `vad_threshold`: `float` - The threshold for VAD. Defaults to `0.35`.
+
+#### `/asr` (WhisperX / Speakr compatibility)
+
+The `/asr` endpoint uses the whisper-asr-webservice contract:
+
+- `audio_file`: The audio file to transcribe (required).
+- `diarize` / `enable_diarization`: Enable speaker diarization.
+- `min_speakers` / `max_speakers`: Optional user-supplied speaker hints.
+- `return_speaker_embeddings`: Include one 256-dimensional embedding per speaker.
+- `language`, `task`, `output`: Standard WhisperX-compatible options.
+- `initial_prompt`, `hotwords`, `model`, `encode`: Accepted for compatibility; model selection remains controlled by the service configuration.
+
+Response fields:
+
+```json
+{
+  "text": "...",
+  "language": "en",
+  "segments": [
+    {"start": 0.0, "end": 5.2, "text": "...", "speaker": "SPEAKER_00"}
+  ],
+  "speakers": ["SPEAKER_00", "SPEAKER_01"],
+  "speaker_embeddings": {"SPEAKER_00": [0.01, "..."]}
+}
+```
+
+Speakr configuration:
+
+```dotenv
+TRANSCRIPTION_CONNECTOR=asr_endpoint
+ASR_BASE_URL=http://insanelyfastwhisper-api:8888
+ASR_DIARIZE=true
+ASR_RETURN_SPEAKER_EMBEDDINGS=true
+ASR_TIMEOUT=1800
+```
+
+The service does not force speaker counts. Speaker counts remain automatic unless the client explicitly supplies `min_speakers` or `max_speakers`. Compressed audio is decoded through ffmpeg for consistent diarization, and pyannote's exclusive diarization output is used for transcript alignment.
 
 ## Reviewer Quick Start (Lightweight Testing)
 

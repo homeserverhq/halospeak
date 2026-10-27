@@ -59,6 +59,7 @@ docker-compose.yaml
 .dockerignore
 to-do/
 *.md # Excluding markdown files unless explicitly needed in the image
+!THIRD_PARTY_NOTICES.md
 temp_uploads/
 tests/
 transcripts/

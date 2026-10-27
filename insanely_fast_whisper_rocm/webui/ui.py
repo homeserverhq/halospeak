@@ -25,6 +25,7 @@ from insanely_fast_whisper_rocm.utils.constants import (
     DEFAULT_TRANSCRIPTS_DIR,
     DEFAULT_VAD,
     DEFAULT_VAD_THRESHOLD,
+    DENOISE_AVAILABLE,
     MAX_BATCH_SIZE,
     MAX_SPEAKERS,
     MIN_BATCH_SIZE,
@@ -154,7 +155,14 @@ def _create_stabilization_ui(
             label="Enable word-level stabilization (--stabilize)",
         )
         demucs = gr.Checkbox(
-            value=default_demucs, label="Use Demucs noise reduction (--demucs)"
+            value=default_demucs if DENOISE_AVAILABLE else False,
+            label="Use AI noise reduction (DPDFNet)",
+            info=(
+                None
+                if DENOISE_AVAILABLE
+                else "Unavailable: install the runtime with sherpa-onnx and DPDFNet."
+            ),
+            interactive=DENOISE_AVAILABLE,
         )
         vad = gr.Checkbox(value=default_vad, label="Enable VAD (--vad)")
         vad_threshold = gr.Slider(

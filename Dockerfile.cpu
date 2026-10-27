@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.10-slim-bookworm
+
+LABEL org.opencontainers.image.source="https://github.com/beecave-homelab/insanely-fast-whisper-rocm"
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV TZ=Europe/Amsterdam
+ENV GRADIO_SERVER_NAME="0.0.0.0"
+ENV TORCHAUDIO_USE_SOUNDFILE=1
+ENV WHISPER_DEVICE=cpu
+ENV WHISPER_DTYPE=float32
+ENV WHISPER_DIARIZATION_MODEL=pyannote/speaker-diarization-community-1
+
+# Install only the OS-level dependencies needed for CPU audio processing.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsndfile1 \
+        libgomp1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+WORKDIR /app
+
+# Install the CPU-only PyTorch wheels. Dependencies are supplied by the pinned
+# CPU requirements file below, so avoid resolving unpinned transitive packages.
+ARG TORCH_VERSION=2.8.0
+RUN pip install --no-cache-dir --no-deps \
+        --index-url https://download.pytorch.org/whl/cpu \
+        "torch==${TORCH_VERSION}+cpu" \
+        "torchaudio==${TORCH_VERSION}+cpu"
+
+# Install the resolved CPU runtime package set. ROCm, Triton, ONNX Runtime ROCm,
+# and Demucs are intentionally absent (see requirements-cpu.txt).
+COPY requirements-cpu.txt /app/
+RUN pip install --no-cache-dir --no-deps -r /app/requirements-cpu.txt
+
+# Copy project metadata and application source.
+COPY pyproject.toml /app/
+COPY openapi.yaml /app/
+COPY LICENSE.txt /app/
+COPY THIRD_PARTY_NOTICES.md /app/
+COPY ./insanely_fast_whisper_rocm /app/insanely_fast_whisper_rocm/
+
+# Install the local package itself without re-resolving dependencies.
+RUN pip install --no-cache-dir --no-deps .
+
+# Generate the runtime package-license inventory for redistribution notices.
+COPY scripts/audit_licenses.py /app/scripts/audit_licenses.py
+RUN python /app/scripts/audit_licenses.py --write /app/THIRD_PARTY_LICENSES.md
+
+# Expose default internal ports (API/WebUI). Actual bindings are controlled by Compose.
+EXPOSE 8888
+EXPOSE 7860
+
+# Use the package entrypoint so host/port are controlled by env vars.
+CMD ["insanely-fast-whisper-rocm"]

@@ -930,9 +930,13 @@ class TestStableTS:
             tmp_path = Path(tmp_file.name)
 
         try:
-            result = self.runner.invoke(
-                cli, ["transcribe", str(tmp_path), "--stabilize", "--demucs"]
-            )
+            with patch(
+                "insanely_fast_whisper_rocm.cli.commands.constants.DENOISE_AVAILABLE",
+                True,
+            ):
+                result = self.runner.invoke(
+                    cli, ["transcribe", str(tmp_path), "--stabilize", "--demucs"]
+                )
             assert result.exit_code == 0
             mock_stabilize.assert_called_once()
             call_args = mock_stabilize.call_args

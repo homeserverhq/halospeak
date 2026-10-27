@@ -6,7 +6,7 @@ Integration tests that verify transcription works end-to-end (CLI, API, WebUI) a
 
 ## Overview
 
-The test suite validates that the application can transcribe audio with all feature flags enabled (`--vad --demucs --stabilize --diarize`) across two ROCm delivery routes:
+The test suite validates that the application can transcribe audio with all feature flags enabled (`--vad --demucs --stabilize --diarize`; `--demucs` now selects DPDFNet noise reduction) across two ROCm delivery routes:
 
 | Route | Base image | ROCm source | Image size |
 | -- | -- | -- | -- |
@@ -120,7 +120,7 @@ Verifies the test audio file exists at `temp_uploads/1-minute-test-audio.wav`. I
 
 ### Phase 1 — CLI transcription tests
 
-Runs `insanely-fast-whisper-cli transcribe` with `--vad --demucs --stabilize --diarize` for both `chunk` and `word` timestamp types. Results are validated with `validate_json_diarized` which checks for non-empty text, `diarized=true`, and speaker labels in segments.
+Runs `insanely-fast-whisper-cli transcribe` with `--vad --demucs --stabilize --diarize` (`--demucs` selects DPDFNet) for both `chunk` and `word` timestamp types. Results are validated with `validate_json_diarized` which checks for non-empty text, `diarized=true`, and speaker labels in segments.
 
 ### Phase 2 — API transcription tests
 

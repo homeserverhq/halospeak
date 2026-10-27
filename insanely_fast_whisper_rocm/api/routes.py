@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from insanely_fast_whisper_rocm.api.dependencies import (
@@ -34,6 +34,7 @@ from insanely_fast_whisper_rocm.utils import (
     DEFAULT_TIMESTAMP_TYPE,
     DEFAULT_VAD,
     DEFAULT_VAD_THRESHOLD,
+    DENOISE_AVAILABLE,
     HF_TOKEN,
     RESPONSE_FORMAT_JSON,
     SUPPORTED_RESPONSE_FORMATS,
@@ -119,13 +120,14 @@ def _apply_post_processing(
     min_speakers: int | None,
     max_speakers: int | None,
     audio_path: str,
+    return_speaker_embeddings: bool = False,
 ) -> dict[str, Any]:
     """Apply optional stabilization and diarization post-processing.
 
     Args:
         result: Raw Whisper transcription result.
         stabilize: Whether to run timestamp stabilization.
-        demucs: Enable Demucs noise reduction in stabilization.
+        demucs: Enable AI noise reduction (DPDFNet) in stabilization.
         vad: Enable VAD in stabilization.
         vad_threshold: VAD sensitivity threshold.
         diarize: Whether to run speaker diarization.
@@ -134,6 +136,7 @@ def _apply_post_processing(
         min_speakers: Minimum speaker count.
         max_speakers: Maximum speaker count.
         audio_path: Path to the audio file on disk.
+        return_speaker_embeddings: Include per-speaker embeddings in the result.
 
     Returns:
         The result dict, potentially enriched with stabilization and/or
@@ -141,9 +144,20 @@ def _apply_post_processing(
         is added (``True`` on success, ``False`` if stabilization failed).
 
     Raises:
-        HTTPException: If diarization_device is invalid or diarization fails.
+        HTTPException: If noise reduction is requested in a build that excludes
+            it, if diarization_device is invalid, or if diarization fails.
             Diarization failures are recorded on ``result`` before raising.
     """
+    if demucs and not DENOISE_AVAILABLE:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "AI noise reduction is not available in this build. Install the "
+                "runtime with sherpa-onnx and DPDFNet, or disable noise "
+                "reduction."
+            ),
+        )
+
     if stabilize:
         try:
             result = stabilize_timestamps(
@@ -192,6 +206,7 @@ def _apply_post_processing(
                 max_speakers=max_speakers,
                 device=normalized_device,
                 hf_token=HF_TOKEN,
+                return_embeddings=return_speaker_embeddings,
             )
         except DiarizationError as e:
             result["diarized"] = False
@@ -241,7 +256,9 @@ async def create_transcription(
     stabilize: bool = Form(
         DEFAULT_STABILIZE, description="Enable timestamp stabilization"
     ),
-    demucs: bool = Form(DEFAULT_DEMUCS, description="Enable Demucs noise reduction"),
+    demucs: bool = Form(
+        DEFAULT_DEMUCS, description="Enable AI noise reduction (DPDFNet)"
+    ),
     vad: bool = Form(DEFAULT_VAD, description="Enable Voice Activity Detection"),
     vad_threshold: float = Form(
         DEFAULT_VAD_THRESHOLD, description="VAD threshold for speech detection"
@@ -271,7 +288,7 @@ async def create_transcription(
         language: Optional source language code (auto-detect if None)
         task: ASR task type (must be "transcribe")
         stabilize: Enable timestamp stabilization if True.
-        demucs: Enable Demucs noise reduction if True.
+        demucs: Enable AI noise reduction (DPDFNet) if True.
         vad: Enable Voice Activity Detection if True.
         vad_threshold: VAD sensitivity threshold (0.0 - 1.0).
         diarize: Enable speaker diarization if True.
@@ -402,7 +419,9 @@ async def create_translation(
     stabilize: bool = Form(
         DEFAULT_STABILIZE, description="Enable timestamp stabilization"
     ),
-    demucs: bool = Form(DEFAULT_DEMUCS, description="Enable Demucs noise reduction"),
+    demucs: bool = Form(
+        DEFAULT_DEMUCS, description="Enable AI noise reduction (DPDFNet)"
+    ),
     vad: bool = Form(DEFAULT_VAD, description="Enable Voice Activity Detection"),
     vad_threshold: float = Form(
         DEFAULT_VAD_THRESHOLD, description="VAD threshold for speech detection"
@@ -430,7 +449,7 @@ async def create_translation(
         timestamp_type: Type of timestamp to generate ("chunk" or "word")
         language: Optional source language code (auto-detect if None)
         stabilize: Enable timestamp stabilization if True.
-        demucs: Enable Demucs noise reduction if True.
+        demucs: Enable AI noise reduction (DPDFNet) if True.
         vad: Enable Voice Activity Detection if True.
         vad_threshold: VAD sensitivity threshold (0.0 - 1.0).
         diarize: Enable speaker diarization if True.
@@ -510,6 +529,189 @@ async def create_translation(
 
         # Format response
         return ResponseFormatter.format_translation(result, response_format)
+
+    finally:
+        file_handler.cleanup(temp_filepath)
+
+
+def _segment_start_end(segment: dict[str, Any]) -> tuple[float, float]:
+    """Return start/end seconds from a chunk-style or segment-style dict.
+
+    Args:
+        segment: Whisper chunk or diarized segment dictionary.
+
+    Returns:
+        ``(start, end)`` in seconds. Invalid or missing values fall back to
+        ``0.0``.
+    """
+    from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        _chunk_time_bounds,
+    )
+
+    return _chunk_time_bounds(segment)
+
+
+@router.post(
+    "/asr",
+    tags=["Compatibility"],
+    summary="WhisperX-compatible ASR endpoint",
+    description=(
+        "Compatibility endpoint for whisper-asr-webservice/WhisperX clients "
+        "such as Speakr. Accepts the audio_file multipart field and query "
+        "parameters used by those clients."
+    ),
+    response_model=None,
+)
+async def create_asr_compatibility(
+    audio_file: UploadFile = File(..., description="The audio file to transcribe"),  # noqa: B008
+    encode: bool = Query(True, description="Accepted for compatibility"),
+    task: str = Query("transcribe", description="transcribe or translate"),
+    output: str = Query("json", description="json or verbose_json"),
+    language: str | None = Query(None, description="Source language code"),
+    diarize: bool = Query(DEFAULT_DIARIZE, description="Enable diarization"),
+    enable_diarization: bool | None = Query(
+        None, description="WhisperX-compatible diarization flag"
+    ),
+    return_speaker_embeddings: bool = Query(
+        False, description="Return one embedding per speaker"
+    ),
+    num_speakers: int | None = Query(None, description="Exact speaker count"),
+    min_speakers: int | None = Query(None, description="Minimum speaker count"),
+    max_speakers: int | None = Query(None, description="Maximum speaker count"),
+    initial_prompt: str | None = Query(None, description="Accepted for compatibility"),
+    hotwords: str | None = Query(None, description="Accepted for compatibility"),
+    model: str | None = Query(None, description="Accepted for compatibility"),
+    diarization_device: str = Query(
+        DEFAULT_DIARIZATION_DEVICE,
+        description="Device for diarization (cpu, cuda, or gpu)",
+    ),
+    asr_pipeline: WhisperPipeline = Depends(get_asr_pipeline),  # noqa: B008
+    file_handler: FileHandler = Depends(get_file_handler),  # noqa: B008
+) -> JSONResponse:
+    """Transcribe audio using the whisper-asr-webservice-compatible contract.
+
+    Args:
+        audio_file: Audio upload named ``audio_file`` (not ``file``).
+        encode: Compatibility flag; ignored.
+        task: ``transcribe`` or ``translate``.
+        output: ``json`` or ``verbose_json``.
+        language: Optional source language code.
+        diarize: Enable speaker diarization.
+        enable_diarization: WhisperX-compatible alias for ``diarize``.
+        return_speaker_embeddings: Include per-speaker 256-dimensional vectors.
+        num_speakers: Exact speaker count.
+        min_speakers: Minimum speaker count.
+        max_speakers: Maximum speaker count.
+        initial_prompt: Compatibility flag; ignored.
+        hotwords: Compatibility flag; ignored.
+        model: Compatibility model hint; the service model remains authoritative.
+        diarization_device: Diarization device.
+        asr_pipeline: Injected ASR pipeline.
+        file_handler: Injected file handler.
+
+    Returns:
+        WhisperX-compatible JSON containing text, segments, speakers, and
+        optional speaker embeddings.
+
+    Raises:
+        HTTPException: If the file is invalid or transcription fails.
+    """
+    if task not in {"transcribe", "translate"}:
+        raise HTTPException(status_code=400, detail="Unsupported task")
+    if output.lower() not in {"json", "verbose_json"}:
+        raise HTTPException(status_code=400, detail="Unsupported output format")
+
+    should_diarize = diarize or bool(enable_diarization)
+    logger.info(
+        "Received /asr compatibility request: file=%s diarize=%s "
+        "min=%s max=%s embeddings=%s",
+        audio_file.filename,
+        should_diarize,
+        min_speakers,
+        max_speakers,
+        return_speaker_embeddings,
+    )
+    logger.debug(
+        "ASR compatibility passthrough: encode=%s model=%s prompt=%s hotwords=%s",
+        encode,
+        model,
+        initial_prompt,
+        hotwords,
+    )
+
+    file_handler.validate_audio_file(audio_file)
+    temp_filepath = file_handler.save_upload(audio_file)
+
+    try:
+        orchestrator = create_orchestrator()
+        base_config = asr_pipeline.asr_backend.config
+        try:
+            result = orchestrator.run_transcription(
+                audio_path=temp_filepath,
+                backend_config=base_config,
+                language=language,
+                task=task,
+                timestamp_type=DEFAULT_TIMESTAMP_TYPE,
+            )
+        except OutOfMemoryError as oom:
+            raise HTTPException(
+                status_code=507,
+                detail=f"Insufficient GPU memory for transcription: {oom}",
+            ) from oom
+        except Exception as exc:
+            if isinstance(exc, HTTPException):
+                raise
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        result = _apply_post_processing(
+            result,
+            stabilize=False,
+            demucs=False,
+            vad=False,
+            vad_threshold=DEFAULT_VAD_THRESHOLD,
+            diarize=should_diarize,
+            diarization_device=diarization_device,
+            num_speakers=num_speakers,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+            audio_path=temp_filepath,
+            return_speaker_embeddings=return_speaker_embeddings,
+        )
+        _persist_post_processed_result(result)
+
+        config_used = result.get("config_used") or {}
+        payload: dict[str, Any] = {
+            "text": result.get("text", ""),
+            "language": result.get("language") or language,
+            "provider": "insanely-fast-whisper",
+            "model": config_used.get("model") or model,
+        }
+
+        if should_diarize:
+            segment_payload: list[dict[str, Any]] = []
+            for segment in result.get("segments") or []:
+                start, end = _segment_start_end(segment)
+                segment_payload.append({
+                    "start": start,
+                    "end": end,
+                    "text": segment.get("text", ""),
+                    "speaker": segment.get("speaker"),
+                })
+            if segment_payload:
+                payload["segments"] = segment_payload
+                payload["speakers"] = sorted({
+                    item["speaker"] for item in segment_payload if item.get("speaker")
+                })
+
+        if return_speaker_embeddings:
+            payload["speaker_embeddings"] = result.get("speaker_embeddings") or {}
+
+        logger.info(
+            "Completed /asr compatibility request: segments=%s speakers=%s",
+            len(payload.get("segments", [])),
+            payload.get("speakers", []),
+        )
+        return JSONResponse(content=payload)
 
     finally:
         file_handler.cleanup(temp_filepath)

@@ -403,6 +403,17 @@ def test_to_dict_comprehensive() -> None:
     assert st._to_dict([1, 2, 3]) == {"text": "[1, 2, 3]"}
 
 
+def test_stabilize_timestamps__raises_when_denoise_unavailable(
+    sample_result: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Noise reduction requests fail clearly when DPDFNet is unavailable."""
+    monkeypatch.setattr(st, "is_dpdfnet_available", lambda: False)
+
+    with pytest.raises(RuntimeError, match="AI noise reduction is not available"):
+        st.stabilize_timestamps(sample_result, demucs=True)
+
+
 def test_stabilize_with_progress_callback_unavailable() -> None:
     """Test stabilize_timestamps with progress_cb when stable_whisper unavailable."""
     result = {"text": "test", "original_file": "/test.mp3"}
@@ -496,6 +507,7 @@ def test_stabilize_with_progress_callback_success_lambda(
 ) -> None:
     """Test stabilize_timestamps with progress_cb during successful lambda path."""
     messages: list[str] = []
+    denoisers: list[str | None] = []
 
     def progress_cb(msg: str) -> None:
         messages.append(msg)
@@ -509,6 +521,7 @@ def test_stabilize_with_progress_callback_success_lambda(
         check_sorted: bool = False,
         **kwargs: dict[str, Any],
     ) -> dict[str, Any]:
+        denoisers.append(denoiser)
         base = inference_func()
         base.setdefault("segments", [])
         base["segments"].append({"text": "!", "start": 3.0, "end": 3.5})
@@ -516,6 +529,7 @@ def test_stabilize_with_progress_callback_success_lambda(
 
     mock_sw = SimpleNamespace(transcribe_any=fake_transcribe_any)
     monkeypatch.setattr(st, "stable_whisper", mock_sw, raising=False)
+    monkeypatch.setattr(st, "is_dpdfnet_available", lambda: True)
     monkeypatch.setattr(st, "_postprocess", None, raising=False)
     monkeypatch.setattr(st, "_postprocess_alt", None, raising=False)
 
@@ -524,6 +538,7 @@ def test_stabilize_with_progress_callback_success_lambda(
     )
 
     assert stabilized.get("stabilized") is True
+    assert denoisers == ["dpdfnet"]
     assert len(messages) > 0
     assert any("demucs=True" in msg for msg in messages)
     assert any("successful" in msg for msg in messages)
@@ -577,7 +592,7 @@ def test_stabilize_postprocess_typeerror_fallback(
         st, "_postprocess", mock_postprocess_with_typeerror, raising=False
     )
 
-    stabilized = st.stabilize_timestamps(sample_result, demucs=True, vad=True)
+    stabilized = st.stabilize_timestamps(sample_result, demucs=False, vad=True)
 
     assert stabilized.get("stabilized") is True
     assert call_count["count"] == 2  # Called twice due to TypeError fallback

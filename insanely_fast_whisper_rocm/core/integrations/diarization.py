@@ -10,19 +10,26 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import subprocess
 import tempfile
 import threading
 import time
 import warnings
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+import numpy as np
 
 from insanely_fast_whisper_rocm.core.backend_cache import invalidate_gpu_cache
 from insanely_fast_whisper_rocm.core.errors import DiarizationError
 from insanely_fast_whisper_rocm.utils.constants import (
     DEFAULT_DIARIZATION_MODEL,
     DIARIZATION_ALLOW_CPU_FALLBACK,
+    DIARIZATION_DISABLE_MIOPEN,
+    DIARIZATION_EMBEDDING_CLUSTERING,
     DIARIZATION_FFMPEG_TIMEOUT_SECONDS,
     DIARIZATION_PRELOAD_AUDIO,
 )
@@ -63,6 +70,51 @@ _CACHE: dict[tuple[str, str, str], Pipeline] = {}  # type: ignore[type-arg]
 _ACTIVE_PIPELINE_USES: dict[int, int] = {}
 _PENDING_GPU_EVICTIONS: dict[int, Pipeline] = {}  # type: ignore[type-arg]
 _LOCK = threading.RLock()
+_KERNEL_MODE_LOCK = threading.RLock()
+
+
+@contextmanager
+def _rocm_native_diarization_kernels(enabled: bool) -> Iterator[None]:
+    """Temporarily use native PyTorch kernels for ROCm diarization.
+
+    MIOpen JIT compilation is broken for some ROCm/gfx combinations (notably
+    gfx1151 with ROCm 7.0). Pyannote's BatchNorm and LSTM dropout paths then
+    fail during inference. Native PyTorch kernels avoid MIOpen entirely and
+    produce the same diarization result.
+
+    Args:
+        enabled: Whether the workaround may be applied. Pass True for GPU
+            diarization requests.
+
+    Yields:
+        None while MIOpen/cuDNN is disabled if applicable.
+    """
+    if not enabled or not DIARIZATION_DISABLE_MIOPEN:
+        yield
+        return
+
+    try:
+        import torch
+    except Exception:  # pragma: no cover - defensive import guard
+        yield
+        return
+
+    if getattr(torch.version, "hip", None) is None:
+        yield
+        return
+
+    with _KERNEL_MODE_LOCK:
+        previous = torch.backends.cudnn.enabled
+        if previous:
+            logger.info(
+                "Disabling MIOpen/cuDNN for ROCm diarization to avoid MIOpen "
+                "JIT kernel failures"
+            )
+        torch.backends.cudnn.enabled = False
+        try:
+            yield
+        finally:
+            torch.backends.cudnn.enabled = previous
 
 
 def _get_or_create_pipeline(
@@ -76,7 +128,7 @@ def _get_or_create_pipeline(
 
     Args:
         model_name: HuggingFace model identifier (e.g.
-            ``pyannote/speaker-diarization-3.1``).
+            ``pyannote/speaker-diarization-community-1``).
         device: Torch device string (``"cpu"`` or ``"cuda"``).
         hf_token: HuggingFace access token for gated models.
         reserve: Track the returned pipeline as actively in use.
@@ -122,8 +174,23 @@ def _get_or_create_pipeline(
         import torch
 
         pipeline = pipeline.to(torch.device(device))  # type: ignore[union-attr]
-    except Exception as exc:  # pragma: no cover — defensive
-        _raise_load_error(model_name, exc)
+    except Exception as exc:
+        if (
+            device == "cuda"
+            and DIARIZATION_ALLOW_CPU_FALLBACK
+            and _is_cuda_unavailable_error(exc)
+        ):
+            logger.warning(
+                "CUDA is unavailable for diarization (%s); using CPU instead",
+                exc,
+            )
+            try:
+                pipeline = pipeline.to(torch.device("cpu"))  # type: ignore[union-attr]
+                device = "cpu"
+            except Exception as cpu_exc:  # pragma: no cover - defensive
+                _raise_load_error(model_name, cpu_exc)
+        else:
+            _raise_load_error(model_name, exc)
     load_elapsed = time.perf_counter() - started_at
     logger.info(
         "Diarization timing: pipeline_load_seconds=%.3f model=%s device=%s",
@@ -209,6 +276,53 @@ def _normalize_diarization_device(device: str) -> str:
     return normalized
 
 
+def _resolve_diarization_device(device: str) -> str:
+    """Resolve a requested diarization device against the CPU-only runtime.
+
+    CPU builds may still receive a stale ``DIARIZATION_DEVICE=cuda`` value from
+    an existing user ``.env``. Fall back to CPU when CUDA is unavailable and
+    the configured fallback is enabled.
+
+    Args:
+        device: User-facing device string.
+
+    Returns:
+        ``"cpu"`` or ``"cuda"`` depending on availability.
+
+    Raises:
+        DiarizationError: If CUDA is requested, unavailable, and fallback is
+            disabled.
+    """
+    normalized = _normalize_diarization_device(device)
+    if normalized != "cuda":
+        return normalized
+
+    try:
+        import torch
+
+        cuda_available = torch.cuda.is_available()
+    except Exception:  # pragma: no cover - defensive import guard
+        cuda_available = False
+
+    if cuda_available:
+        return "cuda"
+
+    if DIARIZATION_ALLOW_CPU_FALLBACK:
+        logger.warning(
+            "Diarization device 'cuda' requested but CUDA is unavailable; "
+            "falling back to CPU"
+        )
+        return "cpu"
+
+    raise DiarizationError(
+        "CUDA was requested for diarization but is not available in this "
+        "runtime. Set DIARIZATION_DEVICE=cpu or enable "
+        "DIARIZATION_ALLOW_CPU_FALLBACK=true.",
+        model=DEFAULT_DIARIZATION_MODEL,
+        reason="device_unavailable",
+    )
+
+
 def _log_timing(label: str, started_at: float, **fields: object) -> None:
     """Log a concise diarization timing event.
 
@@ -225,11 +339,79 @@ def _log_timing(label: str, started_at: float, **fields: object) -> None:
         logger.info("Diarization timing: %s_seconds=%.3f", label, elapsed)
 
 
+def _required_diarization_repos(model_name: str) -> list[str]:
+    """Return gated Hugging Face repos required for a diarization model.
+
+    pyannote.audio 4.x eagerly downloads a PLDA from the community-1 repo even
+    when loading the legacy 3.1 pipeline. The community-1 pipeline only needs
+    its own repository.
+
+    Args:
+        model_name: Diarization pipeline identifier.
+
+    Returns:
+        Ordered list of gated repository identifiers.
+    """
+    if "community-1" in model_name:
+        return [model_name]
+    return [
+        model_name,
+        "pyannote/segmentation-3.0",
+        "pyannote/speaker-diarization-community-1",
+    ]
+
+
+def _extract_gated_repo_id(exc: Exception, fallback: str) -> str:
+    """Return the Hugging Face repo named by a gated-model exception.
+
+    Args:
+        exc: Original pipeline-load exception.
+        fallback: Repo to report when the exception does not expose a repo.
+
+    Returns:
+        Repository identifier such as ``pyannote/speaker-diarization-community-1``.
+    """
+    candidates = [
+        getattr(exc, "repo_id", None),
+        getattr(exc, "repository", None),
+        getattr(exc, "model_name", None),
+    ]
+    response = getattr(exc, "response", None)
+    if response is not None:
+        candidates.extend([
+            getattr(response, "repo_id", None),
+            getattr(response, "model_name", None),
+        ])
+
+    message = str(exc)
+    match = re.search(
+        r"(?:https?://huggingface\.co/)?([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)",
+        message,
+    )
+    if match:
+        candidates.append(match.group(1))
+
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            continue
+        repo = candidate.strip().rstrip(".,)")
+        for prefix in ("https://huggingface.co/", "http://huggingface.co/", "hf.co/"):
+            if repo.startswith(prefix):
+                repo = repo[len(prefix) :]
+                break
+        if "/" in repo:
+            return repo
+
+    return fallback
+
+
 def _raise_load_error(model_name: str, exc: Exception) -> None:
     """Translate a pipeline-load exception into a ``DiarizationError``.
 
-    Detects HTTP 403 (gated-model license not accepted) and provides an
-    actionable message.  All other errors are wrapped generically.
+    Detects HTTP 401/403 (missing authentication or gated-model license not
+    accepted) and provides an
+    actionable message naming the actual gated repository.  All other errors
+    are wrapped generically.
 
     Args:
         model_name: The model that was being loaded.
@@ -243,12 +425,21 @@ def _raise_load_error(model_name: str, exc: Exception) -> None:
     if status_code is None and hasattr(exc, "response"):
         status_code = getattr(exc.response, "status_code", None)  # type: ignore[union-attr]
 
-    if status_code == 403:
+    if status_code in {401, 403}:
+        gated_repo = _extract_gated_repo_id(exc, model_name)
+        required_repos = _required_diarization_repos(model_name)
+        if gated_repo not in required_repos:
+            required_repos.insert(0, gated_repo)
+        license_list = "\n".join(
+            f"  - https://huggingface.co/{repo}" for repo in required_repos
+        )
         raise DiarizationError(
-            f"Access denied for model '{model_name}'. You must visit "
-            + f"https://huggingface.co/{model_name} and accept the license "
-            + "terms before using it. Then ensure HF_TOKEN is set to a valid "
-            + "HuggingFace access token.",
+            "Authentication or license acceptance is required for gated "
+            + f"diarization model '{gated_repo}'. Accept the license terms for "
+            + "every required repository:\n"
+            + license_list
+            + "\nThen ensure HF_TOKEN is set to a valid HuggingFace access token "
+            + "with access to those gated repositories.",
             model=model_name,
             reason="license_not_accepted",
         ) from exc
@@ -276,6 +467,25 @@ def _is_retriable_gpu_runtime_error(exc: Exception) -> bool:
         or "miopen" in message
         or "rocrand" in message
         or "out of memory" in message
+    )
+
+
+def _is_cuda_unavailable_error(exc: Exception) -> bool:
+    """Return whether an exception indicates CUDA is not available.
+
+    Args:
+        exc: Exception raised while moving a pipeline to CUDA.
+
+    Returns:
+        True for known CPU-only PyTorch/CUDA availability messages.
+    """
+    message = str(exc).lower()
+    return (
+        "torch not compiled with cuda" in message
+        or "no cuda gpus are available" in message
+        or "cuda is not available" in message
+        or "no cuda-capable device" in message
+        or "found no nvidia driver" in message
     )
 
 
@@ -477,12 +687,170 @@ def _time_overlap(
     return max(0.0, overlap_end - overlap_start)
 
 
+def _embedding_waveform(audio_input: dict[str, Any]) -> tuple[Any, int]:
+    """Return a mono 16 kHz waveform for speaker embedding extraction.
+
+    Args:
+        audio_input: Pyannote preloaded audio dictionary.
+
+    Returns:
+        Tuple of waveform tensor shaped ``(1, time)`` and sample rate.
+
+    Raises:
+        ValueError: If the preloaded waveform is missing or invalid.
+    """
+    import torch
+    import torchaudio
+
+    waveform = audio_input.get("waveform")
+    sample_rate = int(audio_input.get("sample_rate", 16_000))
+    if not isinstance(waveform, torch.Tensor):
+        raise ValueError("preloaded waveform is missing")
+    if waveform.dim() == 1:
+        waveform = waveform.unsqueeze(0)
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)
+    if sample_rate != 16_000:
+        waveform = torchaudio.functional.resample(waveform, sample_rate, 16_000)
+        sample_rate = 16_000
+    return waveform, sample_rate
+
+
+def _compute_item_embeddings(
+    pipeline: object,
+    audio_input: dict[str, Any],
+    items: list[dict[str, Any]],
+) -> list[list[float] | None] | None:
+    """Compute normalized speaker embeddings for each ASR item.
+
+    Args:
+        pipeline: Loaded pyannote pipeline with an ``_embedding`` model.
+        audio_input: Pyannote preloaded audio dictionary.
+        items: ASR chunks or segments.
+
+    Returns:
+        One embedding per item, or ``None`` when embeddings cannot be computed.
+    """
+    import torch
+
+    embedding_model_raw = getattr(pipeline, "_embedding", None)
+    if embedding_model_raw is None or not items:
+        return None
+    embedding_model = cast(Callable[[Any], Any], embedding_model_raw)
+
+    try:
+        waveform, sample_rate = _embedding_waveform(audio_input)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Speaker embedding extraction unavailable: %s", exc)
+        return None
+
+    vectors: list[list[float] | None] = []
+    for item in items:
+        start, end = _chunk_time_bounds(item)
+        start_sample = max(0, int(start * sample_rate))
+        end_sample = min(waveform.shape[1], int(end * sample_rate))
+        if end_sample <= start_sample:
+            vectors.append(None)
+            continue
+
+        clip = waveform[:, start_sample:end_sample]
+        if clip.shape[1] < 400:
+            clip = torch.nn.functional.pad(clip, (0, 400 - clip.shape[1]))
+        try:
+            with torch.inference_mode():
+                raw = embedding_model(clip.unsqueeze(0))
+            vector = np.asarray(raw[0], dtype=np.float32).reshape(-1)
+            norm = float(np.linalg.norm(vector))
+            vectors.append((vector / norm).tolist() if norm > 0 else None)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Speaker embedding failed for item: %s", exc)
+            vectors.append(None)
+
+    if not any(vector is not None for vector in vectors):
+        return None
+    return vectors
+
+
+def _cluster_embedding_vectors(
+    vectors: list[list[float] | None],
+    n_clusters: int,
+) -> tuple[list[int], dict[int, list[float]]] | None:
+    """Cluster normalized speaker embeddings with KMeans.
+
+    Args:
+        vectors: One normalized embedding per item, or ``None``.
+        n_clusters: Automatic speaker count from pyannote.
+
+    Returns:
+        Cluster id per item and normalized centroid per cluster, or ``None``
+        when clustering is not possible.
+    """
+    valid = [
+        (index, np.asarray(vector, dtype=np.float32))
+        for index, vector in enumerate(vectors)
+        if vector is not None
+    ]
+    n_clusters = max(1, int(n_clusters))
+    if not valid or len(valid) < n_clusters:
+        return None
+
+    matrix = np.stack([vector for _, vector in valid])
+    if n_clusters == 1:
+        centroid = np.mean(matrix, axis=0)
+        norm = float(np.linalg.norm(centroid))
+        if norm == 0:
+            return None
+        return [0 for _ in vectors], {0: (centroid / norm).tolist()}
+
+    from sklearn.cluster import KMeans
+
+    kmeans = KMeans(n_clusters=n_clusters, n_init=10, random_state=42)
+    labels = kmeans.fit_predict(matrix)
+    cluster_ids = [0 for _ in vectors]
+    for (index, _), cluster_id in zip(valid, labels):
+        cluster_ids[index] = int(cluster_id)
+
+    centroids: dict[int, list[float]] = {}
+    for cluster_id in range(n_clusters):
+        members = matrix[labels == cluster_id]
+        if len(members) == 0:
+            continue
+        centroid = np.mean(members, axis=0)
+        norm = float(np.linalg.norm(centroid))
+        if norm > 0:
+            centroids[cluster_id] = (centroid / norm).tolist()
+
+    if not centroids:
+        return None
+    return cluster_ids, centroids
+
+
+def _labels_for_clusters(cluster_ids: list[int]) -> dict[int, str]:
+    """Map KMeans cluster ids to stable first-appearance speaker labels.
+
+    Args:
+        cluster_ids: Cluster id per primary item.
+
+    Returns:
+        Mapping from cluster id to ``SPEAKER_XX``.
+    """
+    order: list[int] = []
+    for cluster_id in cluster_ids:
+        if cluster_id not in order:
+            order.append(cluster_id)
+    return {
+        cluster_id: f"SPEAKER_{index:02d}" for index, cluster_id in enumerate(order)
+    }
+
+
 def _preload_audio_as_waveform(audio_path: str) -> dict[str, Any]:
     """Load audio as a waveform dict for pyannote when torchcodec is absent.
 
-    Tries ``torchaudio.load`` first (fast path for WAV/FLAC).  When that
-    fails because the format is unsupported by the soundfile backend (e.g.
-    ``.m4a``, ``.mp3``), converts to WAV via ``ffmpeg`` and retries.
+    Uses the direct torchaudio path for WAV/FLAC. Compressed formats are
+    decoded through ffmpeg first so headerless MP3s and remuxed MP3s produce
+    the same waveform. Soundfile/torchaudio MP3 decoding can differ depending
+    on the presence of a Xing/Info header, which shifts the waveform and can
+    destabilize diarization.
 
     Args:
         audio_path: Path to the audio file on disk.
@@ -496,7 +864,6 @@ def _preload_audio_as_waveform(audio_path: str) -> dict[str, Any]:
             direct torchaudio loading and ffmpeg→torchaudio conversion
             fail (reason ``audio_decode_unavailable``).
     """
-    # Fast path: torchaudio can read it directly (WAV, FLAC, etc.)
     try:
         import torchaudio  # pyright: ignore[reportMissingTypeStubs]
     except Exception as exc:
@@ -507,28 +874,32 @@ def _preload_audio_as_waveform(audio_path: str) -> dict[str, Any]:
             reason="audio_decode_unavailable",
         ) from exc
 
-    try:
-        started_at = time.perf_counter()
-        waveform, sample_rate = torchaudio.load(audio_path)
-        # Ensure mono — pyannote expects single-channel audio.
-        if waveform.shape[0] > 1:
-            waveform = waveform.mean(dim=0, keepdim=True)
-        logger.debug(
-            "Preloaded audio via torchaudio: shape=%s, sr=%d",
-            waveform.shape,
-            sample_rate,
-        )
-        _log_timing("audio_preload", started_at, route="torchaudio")
-        return {"waveform": waveform, "sample_rate": sample_rate}
-    except Exception as direct_exc:
-        logger.debug(
-            "torchaudio.load failed for %s: %s - trying ffmpeg conversion",
-            audio_path,
-            direct_exc,
-        )
-
-    # Slow path: convert to WAV via ffmpeg, then load.
     suffix = Path(audio_path).suffix.lower()
+    fast_extensions = {".wav", ".flac", ".aif", ".aiff"}
+
+    if suffix in fast_extensions:
+        try:
+            started_at = time.perf_counter()
+            waveform, sample_rate = torchaudio.load(audio_path)
+            # Ensure mono — pyannote expects single-channel audio.
+            if waveform.shape[0] > 1:
+                waveform = waveform.mean(dim=0, keepdim=True)
+            logger.debug(
+                "Preloaded audio via torchaudio: shape=%s, sr=%d",
+                waveform.shape,
+                sample_rate,
+            )
+            _log_timing("audio_preload", started_at, route="torchaudio")
+            return {"waveform": waveform, "sample_rate": sample_rate}
+        except Exception as direct_exc:
+            logger.debug(
+                "torchaudio.load failed for %s: %s - trying ffmpeg conversion",
+                audio_path,
+                direct_exc,
+            )
+
+    # Slow path: convert to WAV via ffmpeg, then load. Also the forced path for
+    # compressed formats, where decoder-version differences matter.
     started_at = time.perf_counter()
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, prefix="diarize_")
     tmp_path = tmp.name
@@ -661,6 +1032,7 @@ def diarize(
     max_speakers: int | None = None,
     hf_token: str | None = None,
     device: str = "cpu",
+    return_embeddings: bool = False,
 ) -> dict[str, Any]:
     """Apply speaker diarization to a transcription result.
 
@@ -676,10 +1048,12 @@ def diarize(
         hf_token: HuggingFace access token for gated models.
         device: Device for diarization inference (``"cpu"``, ``"cuda"``, or
             ``"gpu"``).
+        return_embeddings: Include one 256-dimensional embedding per speaker
+            in ``speaker_embeddings``.
 
     Returns:
-        The result dict with ``speaker`` added to each chunk and
-        ``diarized`` set to ``True``.
+        The result dict with ``speaker`` added to each chunk, ``diarized`` set
+        to ``True``, and optionally ``speaker_embeddings``.
 
     Raises:
         DiarizationError: If speaker count parameters are invalid or
@@ -709,7 +1083,7 @@ def diarize(
             reason="missing_token",
         )
 
-    device = _normalize_diarization_device(device)
+    device = _resolve_diarization_device(device)
 
     # Load pipeline (cached).
     logger.info(
@@ -740,6 +1114,11 @@ def diarize(
         audio_input = _preload_audio_as_waveform(audio_path)
         logger.info("Audio preloaded for diarization")
 
+    chunks = result.get("chunks") or []
+    segments = result.get("segments") or []
+    primary_items = chunks if chunks else segments
+    embedding_vectors: list[list[float] | None] | None = None
+
     # Run diarization.
     # Free GPU memory held by the ASR backend cache before inference —
     # on 8 GB cards the Whisper model and pyannote cannot coexist on GPU.
@@ -764,8 +1143,27 @@ def diarize(
 
         try:
             started_at = time.perf_counter()
-            diarization_result = pipeline(audio_input, **kwargs)
+            with _rocm_native_diarization_kernels(device == "cuda"):
+                diarization_result = pipeline(audio_input, **kwargs)
             _log_timing("inference", started_at, device=device)
+
+            if (
+                DIARIZATION_EMBEDDING_CLUSTERING
+                and isinstance(audio_input, dict)
+                and primary_items
+            ):
+                started_at = time.perf_counter()
+                embedding_vectors = _compute_item_embeddings(
+                    pipeline,
+                    audio_input,
+                    primary_items,
+                )
+                _log_timing(
+                    "speaker_embedding_extraction",
+                    started_at,
+                    items=len(primary_items),
+                    available=embedding_vectors is not None,
+                )
         except Exception as exc:
             is_gpu_device = device == "cuda"
             can_retry_cpu = (
@@ -788,8 +1186,27 @@ def diarize(
             )
             try:
                 started_at = time.perf_counter()
-                diarization_result = cpu_pipeline(audio_input, **kwargs)
+                with _rocm_native_diarization_kernels(False):
+                    diarization_result = cpu_pipeline(audio_input, **kwargs)
                 _log_timing("inference", started_at, device="cpu", fallback=True)
+
+                if (
+                    DIARIZATION_EMBEDDING_CLUSTERING
+                    and isinstance(audio_input, dict)
+                    and primary_items
+                ):
+                    started_at = time.perf_counter()
+                    embedding_vectors = _compute_item_embeddings(
+                        cpu_pipeline,
+                        audio_input,
+                        primary_items,
+                    )
+                    _log_timing(
+                        "speaker_embedding_extraction",
+                        started_at,
+                        items=len(primary_items),
+                        available=embedding_vectors is not None,
+                    )
             finally:
                 _release_pipeline(cpu_pipeline)
     except Exception as exc:
@@ -809,12 +1226,133 @@ def diarize(
 
     # Extract speaker turns as (start, end, label) tuples.
     # pyannote.audio v4 returns a DiarizeOutput dataclass; v3 returns
-    # an Annotation directly.  Handle both.
+    # an Annotation directly. Handle both. This is the fallback path when
+    # segment-embedding clustering is unavailable.
     annotation = diarization_result  # default: v3-style Annotation
+    embedding_labels: list[str] = []
+    speaker_embeddings: dict[str, list[float]] = {}
     if hasattr(diarization_result, "speaker_diarization"):
         # pyannote.audio v4 — DiarizeOutput dataclass
-        annotation = diarization_result.speaker_diarization  # type: ignore[union-attr]
+        regular = diarization_result.speaker_diarization  # type: ignore[union-attr]
+        embedding_labels = list(regular.labels())
+        exclusive = getattr(diarization_result, "exclusive_speaker_diarization", None)
+        if exclusive is not None:
+            exclusive_labels = list(exclusive.labels())
+            if exclusive_labels:
+                annotation = exclusive
+                logger.info(
+                    "Fallback diarization alignment annotation uses exclusive turns "
+                    "(labels=%s)",
+                    exclusive_labels,
+                )
+            else:
+                annotation = regular
+        else:
+            annotation = regular
 
+        if return_embeddings:
+            raw_embeddings = getattr(diarization_result, "speaker_embeddings", None)
+            if raw_embeddings is not None:
+                for index, label in enumerate(embedding_labels):
+                    try:
+                        vector = raw_embeddings[index]
+                    except (IndexError, TypeError):
+                        continue
+                    tolist = getattr(vector, "tolist", None)
+                    try:
+                        values = tolist() if callable(tolist) else vector
+                        speaker_embeddings[label] = [
+                            float(value) for value in cast("list[float]", values)
+                        ]
+                    except (TypeError, ValueError):
+                        continue
+    else:
+        try:
+            embedding_labels = list(annotation.labels())
+        except Exception:  # pragma: no cover - legacy annotation guard
+            embedding_labels = []
+
+    if not chunks and not segments:
+        logger.warning("No chunks or segments in result - nothing to diarize")
+        return {
+            **result,
+            "diarized": False,
+            "diarization_error": (
+                "No chunks or segments available for speaker alignment."
+            ),
+        }
+
+    # Preferred path: cluster per-segment speaker embeddings. pyannote's turn
+    # boundaries can miss short speaker changes; embeddings of the actual ASR
+    # segments separate speakers more reliably.
+    if (
+        DIARIZATION_EMBEDDING_CLUSTERING
+        and embedding_vectors is not None
+        and len(embedding_vectors) == len(primary_items)
+        and embedding_labels
+    ):
+        started_at = time.perf_counter()
+        cluster_result = _cluster_embedding_vectors(
+            embedding_vectors,
+            len(embedding_labels),
+        )
+        if cluster_result is not None:
+            cluster_ids, centroids = cluster_result
+            label_map = _labels_for_clusters(cluster_ids)
+            aligned_primary = [
+                {**item, "speaker": label_map.get(cluster_id)}
+                for item, cluster_id in zip(primary_items, cluster_ids)
+            ]
+            if centroids:
+                speaker_embeddings = {
+                    label_map[cluster_id]: vector
+                    for cluster_id, vector in centroids.items()
+                    if cluster_id in label_map
+                }
+            _log_timing(
+                "speaker_embedding_clustering",
+                started_at,
+                items=len(aligned_primary),
+                speakers=len(label_map),
+            )
+            logger.info(
+                "Using segment embedding clustering for speaker alignment "
+                "(speakers=%s)",
+                sorted(label_map.values()),
+            )
+
+            out = {
+                **result,
+                "chunks": aligned_primary,
+                "diarized": True,
+            }
+            if chunks:
+                if segments and segments is not chunks:
+                    primary_turns: list[tuple[float, float, str]] = []
+                    for item in aligned_primary:
+                        speaker = item.get("speaker")
+                        if not speaker:
+                            continue
+                        start, end = _chunk_time_bounds(item)
+                        primary_turns.append((start, end, str(speaker)))
+                    out["segments"] = _align_speakers_to_segments(
+                        segments,
+                        primary_turns,
+                    )
+                else:
+                    out["segments"] = aligned_primary
+            else:
+                out["segments"] = aligned_primary
+
+            if return_embeddings:
+                out["speaker_embeddings"] = speaker_embeddings
+            return out
+
+        logger.warning(
+            "Segment embedding clustering failed; falling back to pyannote turns"
+        )
+
+    # Fallback: align ASR items to exclusive/regular pyannote turns.
     speaker_turns: list[tuple[float, float, str]] = []
     started_at = time.perf_counter()
     for turn, _, speaker in annotation.itertracks(yield_label=True):
@@ -829,37 +1367,22 @@ def diarize(
             "diarization_error": "Diarization produced no speaker turns.",
         }
 
-    # Align speakers to chunks, falling back to segments when chunks are
-    # absent (e.g. after stabilization removes the ``chunks`` key).
-    chunks = result.get("chunks") or []
-    segments = result.get("segments") or []
-
-    if not chunks and not segments:
-        logger.warning("No chunks or segments in result - nothing to diarize")
-        return {
-            **result,
-            "diarized": False,
-            "diarization_error": (
-                "No chunks or segments available for speaker alignment."
-            ),
-        }
-
-    # Use chunks as the primary alignment target; fall back to segments.
     primary = chunks if chunks else segments
     started_at = time.perf_counter()
     aligned_primary = _align_speakers_to_segments(primary, speaker_turns)
     _log_timing("speaker_alignment", started_at, items=len(primary))
 
-    out: dict[str, Any] = {**result, "chunks": aligned_primary, "diarized": True}
+    out = {**result, "chunks": aligned_primary, "diarized": True}
 
     if chunks:
-        # Also align segments if they exist and differ from chunks.
         if segments and segments is not chunks:
             out["segments"] = _align_speakers_to_segments(segments, speaker_turns)
         else:
             out["segments"] = aligned_primary
     else:
-        # No original chunks — segments were the primary target.
         out["segments"] = aligned_primary
+
+    if return_embeddings:
+        out["speaker_embeddings"] = speaker_embeddings
 
     return out
