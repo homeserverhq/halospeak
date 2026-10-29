@@ -22,6 +22,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+from huggingface_hub import snapshot_download
+from huggingface_hub.errors import LocalEntryNotFoundError
+from huggingface_hub.utils import HFValidationError
 
 from insanely_fast_whisper_rocm.core.backend_cache import invalidate_gpu_cache
 from insanely_fast_whisper_rocm.core.errors import DiarizationError
@@ -117,10 +120,34 @@ def _rocm_native_diarization_kernels(enabled: bool) -> Iterator[None]:
             torch.backends.cudnn.enabled = previous
 
 
+def _resolve_local_pipeline_dir(model_name: str) -> Path | None:
+    """Return a local pyannote pipeline path when one is already available.
+
+    Args:
+        model_name: HuggingFace model identifier or local path.
+
+    Returns:
+        The local pipeline directory or checkpoint file, or ``None`` when the
+        pipeline is neither a local path nor present in the Hugging Face cache.
+    """
+    candidate = Path(model_name).expanduser()
+    if candidate.is_dir() or candidate.is_file():
+        return candidate
+
+    try:
+        snapshot_dir = snapshot_download(repo_id=model_name, local_files_only=True)
+    except (LocalEntryNotFoundError, HFValidationError, FileNotFoundError) as exc:
+        logger.debug("Diarization pipeline %s is not cached: %s", model_name, exc)
+        return None
+
+    cached_path = Path(snapshot_dir)
+    return cached_path if cached_path.exists() else None
+
+
 def _get_or_create_pipeline(
     model_name: str,
     device: str,
-    hf_token: str,
+    hf_token: str | None,
     *,
     reserve: bool = False,
 ) -> Pipeline:  # type: ignore[valid-type]
@@ -130,11 +157,17 @@ def _get_or_create_pipeline(
         model_name: HuggingFace model identifier (e.g.
             ``pyannote/speaker-diarization-community-1``).
         device: Torch device string (``"cpu"`` or ``"cuda"``).
-        hf_token: HuggingFace access token for gated models.
+        hf_token: Optional HuggingFace access token. When set, it is used to
+            download or authenticate the model from the Hub. When empty, an
+            already-cached pipeline is loaded locally.
         reserve: Track the returned pipeline as actively in use.
 
     Returns:
         A ``pyannote.audio.Pipeline`` instance.
+
+    Raises:
+        DiarizationError: If the pipeline is not cached and no token is set, or
+            if the pipeline cannot be loaded.
     """
     device = _normalize_diarization_device(device)
 
@@ -142,7 +175,7 @@ def _get_or_create_pipeline(
     if isinstance(hf_token, bytes):
         token_bytes = hf_token
     else:
-        token_bytes = str(hf_token).encode()
+        token_bytes = (hf_token or "").encode()
     token_hash = hashlib.sha256(token_bytes).hexdigest()[:16]
     key = (model_name, device, token_hash)
     with _LOCK:
@@ -161,11 +194,31 @@ def _get_or_create_pipeline(
     pipeline: Pipeline | None = None  # type: ignore[type-arg]
     started_at = time.perf_counter()
     try:
-        pipeline = Pipeline.from_pretrained(  # type: ignore[union-attr]
-            model_name,
-            token=hf_token,
-            revision="main",
-        )
+        if hf_token:
+            pipeline = Pipeline.from_pretrained(  # type: ignore[union-attr]
+                model_name,
+                token=hf_token,
+                revision="main",
+            )
+        else:
+            local_checkpoint = _resolve_local_pipeline_dir(model_name)
+            if local_checkpoint is None:
+                raise DiarizationError(
+                    f"Diarization model '{model_name}' is not available in the "
+                    + "local Hugging Face cache, and no HF_TOKEN was provided. "
+                    + "Set HF_TOKEN to download it once, or pre-populate the cache.",
+                    model=model_name,
+                    reason="model_not_cached",
+                )
+            logger.info(
+                "Loading diarization pipeline from local cache: %s",
+                local_checkpoint,
+            )
+            pipeline = Pipeline.from_pretrained(  # type: ignore[union-attr]
+                str(local_checkpoint)
+            )
+    except DiarizationError:
+        raise
     except Exception as exc:
         _raise_load_error(model_name, exc)
 
@@ -1045,7 +1098,8 @@ def diarize(
         num_speakers: Exact number of speakers (``None`` = auto-detect).
         min_speakers: Minimum number of speakers.
         max_speakers: Maximum number of speakers.
-        hf_token: HuggingFace access token for gated models.
+        hf_token: Optional HuggingFace access token. Required only to download
+            a gated model that is not already cached.
         device: Device for diarization inference (``"cpu"``, ``"cuda"``, or
             ``"gpu"``).
         return_embeddings: Include one 256-dimensional embedding per speaker
@@ -1057,8 +1111,9 @@ def diarize(
 
     Raises:
         DiarizationError: If speaker count parameters are invalid or
-            conflicting, pyannote is not installed, the HuggingFace
-            token is missing, or the model cannot be loaded.
+            conflicting, pyannote is not installed, the model is not cached
+            and no HuggingFace token is available, or the model cannot be
+            loaded.
     """
     validate_speaker_config(
         num_speakers=num_speakers,
@@ -1072,15 +1127,6 @@ def diarize(
             + "Install the diarization extras to enable --diarize support.",
             model=DEFAULT_DIARIZATION_MODEL,
             reason="pyannote_not_installed",
-        )
-
-    if not hf_token:
-        raise DiarizationError(
-            "A HuggingFace access token (HF_TOKEN) is required for speaker "
-            + "diarization. Set the HF_TOKEN environment variable or pass "
-            + "hf_token explicitly.",
-            model=DEFAULT_DIARIZATION_MODEL,
-            reason="missing_token",
         )
 
     device = _resolve_diarization_device(device)

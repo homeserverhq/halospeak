@@ -60,22 +60,88 @@ def test_diarize__raises_when_pyannote_not_installed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# diarize() — missing HF token
+# diarize() — cached model without HF token
 # ---------------------------------------------------------------------------
 
 
-def test_diarize__raises_when_hf_token_missing() -> None:
-    """diarize() raises DiarizationError when hf_token is None/empty."""
-    result = _sample_result()
-    with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
-        MagicMock(),  # not None → pyannote "installed"
-    ):
-        with pytest.raises(DiarizationError, match="HF_TOKEN"):
-            diarize(result, audio_path="/fake.wav", hf_token=None)
+def test_get_or_create_pipeline__uses_local_cache_without_hf_token() -> None:
+    """A cached pipeline loads without an HF token."""
+    pipeline_instance = MagicMock()
+    pipeline_instance.to.return_value = pipeline_instance
+    pipeline_cls = MagicMock()
+    pipeline_cls.from_pretrained.return_value = pipeline_instance
 
-        with pytest.raises(DiarizationError, match="HF_TOKEN"):
-            diarize(result, audio_path="/fake.wav", hf_token="")
+    with (
+        patch(
+            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            pipeline_cls,
+        ),
+        patch(
+            "insanely_fast_whisper_rocm.core.integrations.diarization._resolve_local_pipeline_dir",
+            return_value=Path("/cache/pyannote"),
+        ),
+    ):
+        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+            _get_or_create_pipeline,
+        )
+
+        result = _get_or_create_pipeline("model-a", "cpu", None)
+
+    assert result is pipeline_instance
+    pipeline_cls.from_pretrained.assert_called_once_with("/cache/pyannote")
+
+
+def test_get_or_create_pipeline__raises_when_uncached_and_no_hf_token() -> None:
+    """An uncached pipeline requires HF_TOKEN for the initial download."""
+    with (
+        patch(
+            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            MagicMock(),
+        ),
+        patch(
+            "insanely_fast_whisper_rocm.core.integrations.diarization._resolve_local_pipeline_dir",
+            return_value=None,
+        ),
+        pytest.raises(DiarizationError, match="HF_TOKEN") as exc_info,
+    ):
+        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+            _get_or_create_pipeline,
+        )
+
+        _get_or_create_pipeline("model-a", "cpu", None)
+
+    assert exc_info.value.reason == "model_not_cached"
+
+
+def test_diarize__runs_without_hf_token_when_pipeline_is_cached() -> None:
+    """diarize() no longer blocks when an empty token accompanies a cached model."""
+    from insanely_fast_whisper_rocm.core.integrations import diarization
+
+    annotation = MagicMock()
+    annotation.itertracks.return_value = [
+        (MagicMock(start=0.0, end=5.0), None, "SPEAKER_00"),
+    ]
+    output = MagicMock(spec=[])
+    output.speaker_diarization = annotation
+    pipeline = MagicMock(return_value=output)
+    pipeline.to.return_value = pipeline
+
+    with (
+        patch.object(diarization, "Pipeline", MagicMock()),
+        patch.object(
+            diarization, "_get_or_create_pipeline", return_value=pipeline
+        ) as get_pipeline,
+        patch.object(diarization, "_preload_audio_as_waveform", return_value={}),
+    ):
+        out = diarize(_sample_result(), audio_path="fake.wav", hf_token="")
+
+    assert out["diarized"] is True
+    get_pipeline.assert_called_once_with(
+        diarization.DEFAULT_DIARIZATION_MODEL,
+        "cpu",
+        "",
+        reserve=True,
+    )
 
 
 def test_diarize__falls_back_to_cpu_when_cuda_unavailable() -> None:

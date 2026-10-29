@@ -135,8 +135,10 @@ model terms at:
 
 <https://huggingface.co/pyannote/speaker-diarization-community-1>
 
-Then set `HF_TOKEN` in your host configuration file. The token is only required
-for the gated diarization model; the default Whisper model is not gated.
+Then set `HF_TOKEN` in your host configuration file. The token is only needed
+to download the gated diarization model for the first time; if the model is
+already cached locally, diarization works without a token. The default Whisper
+model is not gated.
 
 Attribution and third-party notices are included in
 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md). The CPU image also
@@ -188,8 +190,8 @@ first; for gfx1151, try `11.5.1`, and fall back to `11.0.0` if MIOpen or
 diarization errors occur.
 
 For GPU diarization, accept the community-1 license and set `HF_TOKEN` as
-described above. The GPU image includes the DPDFNet model and generates
-`/app/THIRD_PARTY_LICENSES.md`.
+described above when downloading the model for the first time. The GPU image
+includes the DPDFNet model and generates `/app/THIRD_PARTY_LICENSES.md`.
 
 Speaker labels are assigned by clustering per-segment speaker embeddings. The
 speaker count still comes from pyannote auto-detection; no fixed count is
@@ -270,7 +272,7 @@ Key configuration options include:
 - `WHISPER_MODEL`: The Whisper model to use (e.g., `openai/whisper-large-v3`).
 - `WHISPER_DEVICE`: The device to run on (`0` for CUDA, `mps` for Apple Silicon, `cpu`).
 - `USE_READABLE_SUBTITLES`: `true` or `false`. Enables the new readable subtitle segmentation pipeline. Defaults to `true`.
-- `WHISPER_DIARIZATION_MODEL`: Diarization pipeline. Defaults to `pyannote/speaker-diarization-community-1` (CC-BY-4.0; license acceptance and `HF_TOKEN` required).
+- `WHISPER_DIARIZATION_MODEL`: Diarization pipeline. Defaults to `pyannote/speaker-diarization-community-1` (CC-BY-4.0; license acceptance required for the initial download, and `HF_TOKEN` is only needed when the model is not already cached).
 - `DIARIZATION_DEVICE`: The pyannote diarization device. Keep `cpu` for maximum compatibility, or set `cuda` for faster ROCm GPU diarization after validating your GPU stack.
 - `DIARIZATION_PRELOAD_AUDIO`: Keep `true` on ROCm. The app preloads audio with torchaudio/ffmpeg and passes a waveform to pyannote instead of relying on TorchCodec.
 - `DIARIZATION_ALLOW_CPU_FALLBACK`: Keep `true` unless benchmarking strict GPU-only behavior. Known ROCm/MIOpen GPU failures and unavailable CUDA devices retry diarization on CPU.
