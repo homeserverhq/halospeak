@@ -4,8 +4,7 @@
 
 <h1 align="center">HaloSpeak</h1>
 
-> **Independent fork.** HaloSpeak is an independent fork of
-> [beecave-homelab/insanely-fast-whisper-rocm](https://github.com/beecave-homelab/insanely-fast-whisper-rocm)
+> HaloSpeak is an independent fork of [beecave-homelab/insanely-fast-whisper-rocm](https://github.com/beecave-homelab/insanely-fast-whisper-rocm)
 > and is not affiliated with, endorsed by, or sponsored by that project or the
 > original [Vaibhavs10/insanely-fast-whisper](https://github.com/Vaibhavs10/insanely-fast-whisper)
 > project. "Insanely Fast Whisper" and related names remain the property of
