@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Insanely Fast Whisper API (ROCm)
-  description: A FastAPI wrapper around a custom Whisper-based ASR pipeline.
-  version: 2.1.6
+  title: HaloSpeak API (ROCm)
+  description: HaloSpeak is an independent, ROCm-optimized Whisper ASR API.
+  version: 3.0.0
 paths:
   /v1/audio/transcriptions:
     post:

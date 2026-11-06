@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from insanely_fast_whisper_rocm.core import backend_cache
-from insanely_fast_whisper_rocm.core.asr_backend import HuggingFaceBackendConfig
-from insanely_fast_whisper_rocm.core.backend_cache import (
+from halospeak.core import backend_cache
+from halospeak.core.asr_backend import HuggingFaceBackendConfig
+from halospeak.core.backend_cache import (
     acquire_pipeline,
     borrow_pipeline,
     clear_cache,
@@ -46,10 +46,10 @@ class TestBackendCache:
 
         # Mock backend and pipeline creation
         with patch(
-            "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+            "halospeak.core.backend_cache.HuggingFaceBackend"
         ) as mock_backend_class:
             with patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"
+                "halospeak.core.backend_cache.WhisperPipeline"
             ) as mock_pipeline_class:
                 mock_backend = MagicMock()
                 mock_pipeline = MagicMock()
@@ -76,8 +76,8 @@ class TestBackendCache:
             progress_group_size=5,
         )
 
-        with patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"):
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+        with patch("halospeak.core.backend_cache.HuggingFaceBackend"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 # Acquire twice
                 pipeline1, key1 = acquire_pipeline(cfg)
                 pipeline2, key2 = acquire_pipeline(cfg)
@@ -106,8 +106,8 @@ class TestBackendCache:
             progress_group_size=5,
         )
 
-        with patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"):
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+        with patch("halospeak.core.backend_cache.HuggingFaceBackend"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 # Acquire twice
                 pipeline1, key1 = acquire_pipeline(cfg)
                 pipeline2, key2 = acquire_pipeline(cfg)
@@ -127,7 +127,7 @@ class TestBackendCache:
                 assert backend_cache._CACHE[key1].ref_count == 0
 
     def test_eager_release_mode_closes_backend(self) -> None:
-        """Verify that IFW_EAGER_MODEL_RELEASE=1 closes backend when ref_count hits 0."""
+        """Verify that HALOSPEAK_EAGER_MODEL_RELEASE=1 closes backend when ref_count hits 0."""
         cfg = HuggingFaceBackendConfig(
             model_name="openai/whisper-tiny",
             device="cpu",
@@ -142,10 +142,10 @@ class TestBackendCache:
         backend_cache._EAGER_RELEASE = True
         try:
             with patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mock_backend_class:
                 with patch(
-                    "insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"
+                    "halospeak.core.backend_cache.WhisperPipeline"
                 ):
                     mock_backend = MagicMock()
                     mock_backend.close = Mock()
@@ -179,9 +179,9 @@ class TestBackendCache:
         monkeypatch.setattr(backend_cache, "_EAGER_RELEASE", False)
         monkeypatch.setattr(backend_cache, "_RELEASE_TIMEOUT", None)
         with patch(
-            "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+            "halospeak.core.backend_cache.HuggingFaceBackend"
         ) as mock_backend_class:
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 mock_backend = MagicMock()
                 mock_backend.close = Mock()
                 mock_backend_class.return_value = mock_backend
@@ -208,9 +208,9 @@ class TestBackendCache:
             progress_group_size=5,
         )
 
-        with patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"):
+        with patch("halospeak.core.backend_cache.HuggingFaceBackend"):
             with patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"
+                "halospeak.core.backend_cache.WhisperPipeline"
             ) as mock_pipeline_class:
                 mock_pipeline = MagicMock()
                 mock_pipeline_class.return_value = mock_pipeline
@@ -248,8 +248,8 @@ class TestBackendCache:
             progress_group_size=5,
         )
 
-        with patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"):
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+        with patch("halospeak.core.backend_cache.HuggingFaceBackend"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 # Use the context manager with an exception
                 key = None
                 try:
@@ -282,9 +282,9 @@ class TestBackendCache:
         )
 
         with patch(
-            "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+            "halospeak.core.backend_cache.HuggingFaceBackend"
         ) as mock_backend_class:
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 mock_backend = MagicMock()
                 mock_backend.close = Mock()
                 mock_backend_class.return_value = mock_backend
@@ -313,9 +313,9 @@ class TestBackendCache:
         )
 
         with patch(
-            "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+            "halospeak.core.backend_cache.HuggingFaceBackend"
         ) as mock_backend_class:
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 mock_backend = MagicMock()
                 # Make close() raise an exception
                 mock_backend.close = Mock(side_effect=RuntimeError("Close failed"))
@@ -326,7 +326,7 @@ class TestBackendCache:
 
                 # Clear the cache with force_close (should not crash)
                 with patch(
-                    "insanely_fast_whisper_rocm.core.backend_cache.logger"
+                    "halospeak.core.backend_cache.logger"
                 ) as mock_logger:
                     clear_cache(force_close=True)
 
@@ -349,8 +349,8 @@ class TestBackendCache:
             progress_group_size=5,
         )
 
-        with patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"):
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+        with patch("halospeak.core.backend_cache.HuggingFaceBackend"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 # Acquire and release from multiple threads
                 errors = []
 
@@ -398,8 +398,8 @@ class TestBackendCache:
             progress_group_size=5,
         )
 
-        with patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"):
-            with patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"):
+        with patch("halospeak.core.backend_cache.HuggingFaceBackend"):
+            with patch("halospeak.core.backend_cache.WhisperPipeline"):
                 # Acquire with both configs
                 pipeline1, key1 = acquire_pipeline(cfg1)
                 pipeline2, key2 = acquire_pipeline(cfg2)

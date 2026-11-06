@@ -12,7 +12,7 @@ reviews:
   path_filters:
       - ".coderabbit.yaml"
       - ".env.example"
-      - "insanely_fast_whisper_rocm/**"
+      - "halospeak/**"
       - "tests/**"
       - "scripts/**"
 
@@ -38,7 +38,7 @@ reviews:
     custom_checks:
       - mode: error
         name: "Configuration Access"
-        instructions: "Inspect the PR diff for new direct environment reads in production code outside insanely_fast_whisper_rocm/utils/constants.py. Allow bootstrap environment loading in utils/env_loader.py. Check that new environment variables are documented in .env.example. Evaluate these rules from the diff only; do not run scripts/local-ci.sh or infer Ruff, test, or coverage results from this check."
+        instructions: "Inspect the PR diff for new direct environment reads in production code outside halospeak/utils/constants.py. Allow bootstrap environment loading in utils/env_loader.py. Check that new environment variables are documented in .env.example. Evaluate these rules from the diff only; do not run scripts/local-ci.sh or infer Ruff, test, or coverage results from this check."
 
 chat:
   art: false

@@ -7,7 +7,7 @@ rather than creating one subtitle per word.
 
 from __future__ import annotations
 
-from insanely_fast_whisper_rocm.core.segmentation import Word, segment_words
+from halospeak.core.segmentation import Word, segment_words
 
 
 def test_groups_individual_words_into_phrases() -> None:

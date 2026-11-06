@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.formatters import build_quality_segments
-from insanely_fast_whisper_rocm.core.segmentation import (
+from halospeak.core.formatters import build_quality_segments
+from halospeak.core.segmentation import (
     Word,
     _find_natural_split_points,
     segment_words,
 )
-from insanely_fast_whisper_rocm.utils import constants
+from halospeak.utils import constants
 
 
 def _mk_words(text: str, *, start: float = 0.0, per_word: float = 0.2) -> list[Word]:

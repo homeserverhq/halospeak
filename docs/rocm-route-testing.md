@@ -56,32 +56,32 @@ Both routes access the GPU via host device passthrough (`/dev/kfd`, `/dev/dri`).
 ```bash
 # Build and run the default test container
 docker compose -f docker-compose.test.yaml build
-docker compose -f docker-compose.test.yaml run --rm insanely-fast-whisper-rocm-test
+docker compose -f docker-compose.test.yaml run --rm halospeak-test
 ```
 
 ### Multi-route comparison
 
 ```bash
 # Run a single route
-scripts/run-rocm-route-comparison.sh --service insanely-fast-whisper-rocm-test-rocm-pytorch
+scripts/run-rocm-route-comparison.sh --service halospeak-test-rocm-pytorch
 
 # Run the slim route
-scripts/run-rocm-route-comparison.sh --service insanely-fast-whisper-rocm-test-slim-rocm-apt
+scripts/run-rocm-route-comparison.sh --service halospeak-test-slim-rocm-apt
 
 # Run all routes (default)
 scripts/run-rocm-route-comparison.sh
 
 # Verbose output (streams build + run logs to console)
-scripts/run-rocm-route-comparison.sh --verbose --service insanely-fast-whisper-rocm-test-rocm-pytorch
+scripts/run-rocm-route-comparison.sh --verbose --service halospeak-test-rocm-pytorch
 
 # Force rebuild even if image exists
-scripts/run-rocm-route-comparison.sh --force-build --service insanely-fast-whisper-rocm-test-rocm-pytorch
+scripts/run-rocm-route-comparison.sh --force-build --service halospeak-test-rocm-pytorch
 
 # Dry run (prints planned actions without running Docker)
 scripts/run-rocm-route-comparison.sh --dry-run
 
 # Drop to interactive shell inside container after tests
-scripts/run-rocm-route-comparison.sh --drop-to-shell --service insanely-fast-whisper-rocm-test-rocm-pytorch
+scripts/run-rocm-route-comparison.sh --drop-to-shell --service halospeak-test-rocm-pytorch
 ```
 
 ### `run-rocm-route-comparison.sh` options
@@ -120,15 +120,15 @@ Verifies the test audio file exists at `temp_uploads/1-minute-test-audio.wav`. I
 
 ### Phase 1 — CLI transcription tests
 
-Runs `insanely-fast-whisper-cli transcribe` with `--vad --demucs --stabilize --diarize` (`--demucs` selects DPDFNet) for both `chunk` and `word` timestamp types. Results are validated with `validate_json_diarized` which checks for non-empty text, `diarized=true`, and speaker labels in segments.
+Runs `halospeak-cli transcribe` with `--vad --demucs --stabilize --diarize` (`--demucs` selects DPDFNet) for both `chunk` and `word` timestamp types. Results are validated with `validate_json_diarized` which checks for non-empty text, `diarized=true`, and speaker labels in segments.
 
 ### Phase 2 — API transcription tests
 
-Starts the API server (`python -m insanely_fast_whisper_rocm`), waits for it to be ready, then sends `POST /v1/audio/transcriptions` requests with `diarize=true`, `diarization_device=cuda`, and `num_speakers=2`. Validates responses with `validate_json_diarized`.
+Starts the API server (`python -m halospeak`), waits for it to be ready, then sends `POST /v1/audio/transcriptions` requests with `diarize=true`, `diarization_device=cuda`, and `num_speakers=2`. Validates responses with `validate_json_diarized`.
 
 ### Phase 3 — WebUI transcription tests
 
-Starts the WebUI server (`python -m insanely_fast_whisper_rocm.webui --diarize`), waits for Gradio to be ready, then runs `scripts/webui_integration_test.py` which submits transcription jobs via the Gradio client API. The test script validates the response contains diarized output with speaker labels.
+Starts the WebUI server (`python -m halospeak.webui --diarize`), waits for Gradio to be ready, then runs `scripts/webui_integration_test.py` which submits transcription jobs via the Gradio client API. The test script validates the response contains diarized output with speaker labels.
 
 ### Phase 4 — Summary
 

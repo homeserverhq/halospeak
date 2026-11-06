@@ -1,5 +1,5 @@
 services:
-  insanely-fast-whisper-rocm-dev:
+  halospeak-dev:
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -7,8 +7,8 @@ services:
         ROCM_PYTORCH_BASE: "${ROCM_PYTORCH_BASE:-rocm/pytorch:rocm7.0_ubuntu22.04_py3.10_pytorch_release_2.8.0}"
         HSA_OVERRIDE_GFX_VERSION: "${HSA_OVERRIDE_GFX_VERSION:-}"
 
-    image: hshq/insanelyfastwhisper-gpu-dev:v4
-    container_name: insanely-fast-whisper-rocm-dev
+    image: hshq/halospeak-gpu-dev:3.0.0
+    container_name: halospeak-dev
     restart: unless-stopped
 
     # To allow AMD GPU access:
@@ -27,7 +27,7 @@ services:
     shm_size: 8G
 
     env_file:
-      - "$HOME/.config/insanely-fast-whisper-rocm/.env"
+      - "$HOME/.config/halospeak/.env"
 
     environment:
       # Dev-specific ports are controlled by DEV_* variables to avoid clashing
@@ -57,32 +57,32 @@ services:
       - "./transcripts-txt:/app/transcripts-txt"
       - "./transcripts-srt:/app/transcripts-srt"
       - "./temp_uploads:/app/temp_uploads"
-      - "./insanely_fast_whisper_rocm:/app/insanely_fast_whisper_rocm"
+      - "./halospeak:/app/halospeak"
       - "$HOME/.cache/huggingface/hub:/root/.cache/huggingface/hub"
 
     #################################################
     ## Default: Gradio WebUI without debug logging ##
     #################################################
-    # command: ["python", "-m", "insanely_fast_whisper_rocm.webui"]
+    # command: ["python", "-m", "halospeak.webui"]
     
     ##############################################
     ## Alternative commands (uncomment to use): ##
     ##############################################
     #
     # Gradio WebUI with debug logging:
-    command: ["python", "-m", "insanely_fast_whisper_rocm.webui", "--model", "openai/whisper-large-v3-turbo", "--debug"]
+    command: ["python", "-m", "halospeak.webui", "--model", "openai/whisper-large-v3-turbo", "--debug"]
     #
     # API only:
-    # command: ["python", "-m", "insanely_fast_whisper_rocm"]
+    # command: ["python", "-m", "halospeak"]
     #
     # API with verbose output:
-    # command: ["python", "-m", "insanely_fast_whisper_rocm", "-v"]
+    # command: ["python", "-m", "halospeak", "-v"]
     #
     # Custom WebUI with extra args:
-    # command: ["python", "-m", "insanely_fast_whisper_rocm.webui", "--debug", "--port", "${WEBUI_PORT:-7862}", "--host", "0.0.0.0", "--model", "distil-whisper/distil-large-v3"]
+    # command: ["python", "-m", "halospeak.webui", "--debug", "--port", "${WEBUI_PORT:-7862}", "--host", "0.0.0.0", "--model", "distil-whisper/distil-large-v3"]
     #
     # CLI transcription example:
-    # command: ["python", "-m", "insanely_fast_whisper_rocm.cli", "transcribe", "tests/data/conversion-test-file.mp3", "--debug"]
+    # command: ["python", "-m", "halospeak.cli", "transcribe", "tests/data/conversion-test-file.mp3", "--debug"]
     #
     # For testing without starting the app
     # command: ["/bin/bash"]

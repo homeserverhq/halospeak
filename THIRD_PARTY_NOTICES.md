@@ -1,8 +1,9 @@
 # Third-Party Notices
 
 This file summarizes third-party software and model components used by the
-CPU production image. The project itself is licensed under the MIT License; see
-`LICENSE.txt`.
+CPU production image. HaloSpeak itself is licensed under the MIT License; see
+`LICENSE.txt`. Upstream fork provenance, trademark separation, and retained
+upstream license notices are documented in `NOTICE.md` and `LICENSES/`.
 
 Full runtime package metadata and license identifiers can be regenerated with:
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from insanely_fast_whisper_rocm.api.responses import ResponseFormatter
-from insanely_fast_whisper_rocm.utils import (
+from halospeak.api.responses import ResponseFormatter
+from halospeak.utils import (
     RESPONSE_FORMAT_JSON,
     RESPONSE_FORMAT_SRT,
     RESPONSE_FORMAT_TEXT,

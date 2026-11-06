@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from insanely_fast_whisper_rocm.cli.cli import cli
+from halospeak.cli.cli import cli
 
 
 def test_cli_transcribe_fallback_on_corrupted_stabilization(
@@ -43,10 +43,10 @@ def test_cli_transcribe_fallback_on_corrupted_stabilization(
     # 2. Mock dependencies
     with (
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.cli.commands.cli_facade.process_audio"
+            "halospeak.cli.commands.cli_facade.process_audio"
         ) as mock_process_audio,
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.cli.commands.stabilize_timestamps"
+            "halospeak.cli.commands.stabilize_timestamps"
         ) as mock_stabilize,
     ):
         mock_process_audio.return_value = original_result
@@ -87,7 +87,7 @@ def test_run_task__uses_configured_or_explicit_diarization_device(
     explicit_device: str | None,
 ) -> None:
     """An omitted device uses configuration and an explicit device wins."""
-    from insanely_fast_whisper_rocm.cli import commands
+    from halospeak.cli import commands
 
     options = {} if explicit_device is None else {"diarization_device": explicit_device}
     with (
@@ -101,7 +101,7 @@ def test_run_task__uses_configured_or_explicit_diarization_device(
         ),
         unittest.mock.patch.object(commands, "_handle_output_and_benchmarks"),
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.diarize",
+            "halospeak.core.integrations.diarization.diarize",
             return_value={"text": "Hello", "diarized": True},
         ) as mock_diarize,
     ):

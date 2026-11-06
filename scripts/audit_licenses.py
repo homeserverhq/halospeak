@@ -35,7 +35,7 @@ DENYLIST = {
 KNOWN_LICENSES = {
     "apex": "BSD-3-Clause",
     "ffmpeg-python": "Apache-2.0",
-    "insanely-fast-whisper-rocm": "MIT",
+    "halospeak": "MIT",
     "primepy": "MIT",
     "pyannote-audio": "MIT",
     "pyannote-core": "MIT",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.formatters import (
+from halospeak.core.formatters import (
     BaseFormatter,
     JsonFormatter,
     SrtFormatter,

@@ -2,15 +2,19 @@
 
 > **Note:** Key Commits sections were updated on 2025-07-06 to reflect normalized tags and true release commits.
 
-**Insanely Fast Whisper API** - Complete version history and feature evolution tracking.
+**HaloSpeak** - Complete version history and feature evolution tracking.
 
-[![Version](https://img.shields.io/badge/Version-v2.3.0-informational)](#release-timeline)
+> Entries below v3.0.0 describe pre-fork history inherited from
+> `beecave-homelab/insanely-fast-whisper-rocm` and are retained for provenance.
+
+[![Version](https://img.shields.io/badge/Version-v3.0.0-informational)](#release-timeline)
 
 ______________________________________________________________________
 
 ## 📑 Table of Contents
 
-- [`v2.3.0` (Current) - *17-07-2026*](#v230-current---17-07-2026)
+- [`v3.0.0` (Current) - *06-11-2026*](#v300-current---06-11-2026)
+- [`v2.3.0` - *17-07-2026*](#v230---17-07-2026)
 - [`v2.2.0` - *26-04-2026*](#v220---26-04-2026)
 - [`v2.1.6` - *05-07-2026*](#v216---05-07-2026)
 - [`v2.1.5` - *19-02-2026*](#v215---19-02-2026)
@@ -56,7 +60,24 @@ ______________________________________________________________________
 
 ## Release Timeline
 
-### `v2.3.0` (Current) - *17-07-2026*
+### `v3.0.0` (Current) - *06-11-2026*
+
+#### 🔄 Major Release: HaloSpeak Rebrand and Namespace Migration
+
+HaloSpeak is now an independent fork with clear trademark separation from the
+upstream `beecave-homelab/insanely-fast-whisper-rocm` project.
+
+- Renamed the Python package and distribution to `halospeak`.
+- Renamed CLI entry points to `halospeak`, `halospeak-cli`, and `halospeak-webui`.
+- Moved user configuration to `~/.config/halospeak`.
+- Renamed `IFW_*` environment variables to `HALOSPEAK_*`.
+- Added the HaloSpeak logo, README fork notice, `NOTICE.md`, and upstream
+  license copies under `LICENSES/`.
+- Updated Docker services, containers, images, and documentation to HaloSpeak.
+- This is a clean-break release: legacy package names, CLI names, config paths,
+  and environment variables are no longer supported.
+
+### `v2.3.0` - *17-07-2026*
 
 #### ✨ Feature Release: Diarization Hardening, ROCm Reliability & Env Centralization
 

@@ -10,12 +10,12 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from insanely_fast_whisper_rocm.api.dependencies import (
+from halospeak.api.dependencies import (
     get_asr_pipeline,
     get_file_handler,
 )
-from insanely_fast_whisper_rocm.main import app
-from insanely_fast_whisper_rocm.utils import FileHandler
+from halospeak.main import app
+from halospeak.utils import FileHandler
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def mock_orchestrator(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
         "chunks": [],
     }
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.api.routes.create_orchestrator", lambda: mock_orch
+        "halospeak.api.routes.create_orchestrator", lambda: mock_orch
     )
     return mock_orch
 
@@ -73,25 +73,25 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
         TestClient: Configured client instance.
     """
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.api.app.download_model_if_needed",
+        "halospeak.api.app.download_model_if_needed",
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.asr_backend.HuggingFaceBackend._initialize_pipeline",
+        "halospeak.core.asr_backend.HuggingFaceBackend._initialize_pipeline",
         lambda *args, **kwargs: None,
     )
     # Prevent process_audio from trying to access self.asr_pipe.model
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.asr_backend.HuggingFaceBackend.process_audio",
+        "halospeak.core.asr_backend.HuggingFaceBackend.process_audio",
         lambda *args, **kwargs: {"text": "test", "segments": [], "chunks": []},
     )
     # Prevent stabilize_timestamps from trying to process empty audio
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.api.routes.stabilize_timestamps",
+        "halospeak.api.routes.stabilize_timestamps",
         lambda result, **kwargs: result,
     )
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.asr_backend.HuggingFaceBackend._validate_device",
+        "halospeak.core.asr_backend.HuggingFaceBackend._validate_device",
         lambda self: None,
     )
     app.dependency_overrides[get_file_handler] = lambda: FileHandler(
@@ -121,7 +121,7 @@ def test_transcription_with_stabilization_options(
     method should only receive the core ASR parameters.
     """
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.api.routes.DENOISE_AVAILABLE",
+        "halospeak.api.routes.DENOISE_AVAILABLE",
         True,
     )
     audio_file = io.BytesIO(DUMMY_WAV_HEADER)

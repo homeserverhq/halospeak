@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.asr_backend import ASRBackend
-from insanely_fast_whisper_rocm.core.pipeline import WhisperPipeline
+from halospeak.core.asr_backend import ASRBackend
+from halospeak.core.pipeline import WhisperPipeline
 
 
 @pytest.fixture

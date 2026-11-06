@@ -1,4 +1,4 @@
-"""Tests for load_logging_config function in insanely_fast_whisper_rocm.__main__."""
+"""Tests for load_logging_config function in halospeak.__main__."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from insanely_fast_whisper_rocm.__main__ import load_logging_config
+from halospeak.__main__ import load_logging_config
 
 
 class TestLoadLoggingConfig:
@@ -43,10 +43,10 @@ class TestLoadLoggingConfig:
                 "builtins.open", return_value=open(config_path, encoding="utf-8")
             ):
                 with patch(
-                    "insanely_fast_whisper_rocm.__main__.yaml.safe_load",
+                    "halospeak.__main__.yaml.safe_load",
                     return_value=mock_config,
                 ) as mock_yaml_load:
-                    with patch("insanely_fast_whisper_rocm.__main__.setup_timezone"):
+                    with patch("halospeak.__main__.setup_timezone"):
                         # Execute
                         result = load_logging_config(debug=False)
 
@@ -89,10 +89,10 @@ class TestLoadLoggingConfig:
                 "builtins.open", return_value=open(config_path, encoding="utf-8")
             ):
                 with patch(
-                    "insanely_fast_whisper_rocm.__main__.yaml.safe_load",
+                    "halospeak.__main__.yaml.safe_load",
                     return_value=mock_config,
                 ) as mock_yaml_load:
-                    with patch("insanely_fast_whisper_rocm.__main__.setup_timezone"):
+                    with patch("halospeak.__main__.setup_timezone"):
                         # Execute
                         result = load_logging_config(debug=True)
 
@@ -111,9 +111,9 @@ class TestLoadLoggingConfig:
     def test_load_logging_config_file_not_found(self) -> None:
         """Test load_logging_config when config file doesn't exist."""
         with patch(
-            "insanely_fast_whisper_rocm.__main__.open",
+            "halospeak.__main__.open",
             side_effect=FileNotFoundError("Config file not found"),
         ):
-            with patch("insanely_fast_whisper_rocm.__main__.setup_timezone"):
+            with patch("halospeak.__main__.setup_timezone"):
                 with pytest.raises(FileNotFoundError):
                     load_logging_config(debug=False)

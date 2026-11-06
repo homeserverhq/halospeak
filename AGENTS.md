@@ -466,18 +466,18 @@ These rules standardize how environment variables are loaded and accessed across
 
 ### 16.1 Canonical modules (current repo)
 
-- `insanely_fast_whisper_rocm/utils/env_loader.py` handles early `.env` discovery/loading and debug bootstrap.
-- `insanely_fast_whisper_rocm/utils/constants.py` is the canonical module for exported configuration constants used by application code.
+- `halospeak/utils/env_loader.py` handles early `.env` discovery/loading and debug bootstrap.
+- `halospeak/utils/constants.py` is the canonical module for exported configuration constants used by application code.
 
 ### 16.2 Access policy
 
-- Application modules should import config values from `insanely_fast_whisper_rocm.utils.constants`.
+- Application modules should import config values from `halospeak.utils.constants`.
 - Avoid direct `os.getenv` / `os.environ` usage in feature modules (API, CLI, audio, webui, core, benchmarks).
 - `env_loader.py` is a framework/bootstrapping exception and may read environment values needed to decide logging/bootstrap behavior.
 
 ### 16.3 Adding new variables
 
-- Add new env-backed constants in `insanely_fast_whisper_rocm/utils/constants.py` with typed parsing and safe defaults.
+- Add new env-backed constants in `halospeak/utils/constants.py` with typed parsing and safe defaults.
 - If initialization-order or debug-bootstrap concerns apply, add only minimal pre-load logic in `env_loader.py`.
 - Document every variable in `.env.example` with a short description and default.
 
@@ -490,16 +490,16 @@ These rules standardize how environment variables are loaded and accessed across
   ```bash
   # deny direct env reads in runtime modules (excluding config bootstrap + tests)
   ! git grep -nE 'os\.environ\[|os\.getenv\(' -- \
-    'insanely_fast_whisper_rocm/**/*.py' \
-    ':!insanely_fast_whisper_rocm/utils/constants.py' \
-    ':!insanely_fast_whisper_rocm/utils/env_loader.py' \
+    'halospeak/**/*.py' \
+    ':!halospeak/utils/constants.py' \
+    ':!halospeak/utils/env_loader.py' \
     ':!tests/**'
   ```
 
 ### 16.5 Testing guidance for configuration
 
 - Unit tests may monkeypatch constants module attributes for behavior-driven tests.
-- Integration tests that depend on env values should set env vars **before** importing `insanely_fast_whisper_rocm.utils.constants`; reload only when required in the same process.
+- Integration tests that depend on env values should set env vars **before** importing `halospeak.utils.constants`; reload only when required in the same process.
 - Cover both default and overridden env paths for new configuration behavior.
 
 ______________________________________________________________________
@@ -569,12 +569,12 @@ ______________________________________________________________________
 
 High-level layout (keep this in sync when moving modules):
 
-- `insanely_fast_whisper_rocm/api/`: FastAPI app factory, routes, request/response contracts.
-- `insanely_fast_whisper_rocm/cli/`: Click CLI commands, facade, export flow.
-- `insanely_fast_whisper_rocm/webui/`: Gradio UI wiring and event handlers.
-- `insanely_fast_whisper_rocm/core/`: ASR backend, orchestration, formatting, segmentation.
-- `insanely_fast_whisper_rocm/audio/`: conversion/chunking/processing utilities.
-- `insanely_fast_whisper_rocm/utils/`: constants, env loader, filename/file helpers.
+- `halospeak/api/`: FastAPI app factory, routes, request/response contracts.
+- `halospeak/cli/`: Click CLI commands, facade, export flow.
+- `halospeak/webui/`: Gradio UI wiring and event handlers.
+- `halospeak/core/`: ASR backend, orchestration, formatting, segmentation.
+- `halospeak/audio/`: conversion/chunking/processing utilities.
+- `halospeak/utils/`: constants, env loader, filename/file helpers.
 - `tests/`: mirrored test layout by subsystem (`api`, `cli`, `core`, `audio`, `webui`, `utils`).
 - `scripts/`: project automation (`setup_config.py`, `local-ci.sh`, benchmark helpers).
 - `docker-compose*.yaml` + `Dockerfile*`: deployment/runtime definitions.
@@ -585,9 +585,9 @@ ______________________________________________________________________
 
 ### Interface entrypoints
 
-- API: `python -m insanely_fast_whisper_rocm.api`
-- CLI: `python -m insanely_fast_whisper_rocm.cli`
-- WebUI: `python -m insanely_fast_whisper_rocm.webui`
+- API: `python -m halospeak.api`
+- CLI: `python -m halospeak.cli`
+- WebUI: `python -m halospeak.webui`
 
 Prefer these module entrypoints (or equivalent `pdm run` scripts) over ad-hoc script wrappers.
 
@@ -678,7 +678,7 @@ Actions:
 
 ### Config appears ignored
 
-- Verify user config file path: `~/.config/insanely-fast-whisper-rocm/.env`.
+- Verify user config file path: `~/.config/halospeak/.env`.
 - Confirm constants are imported from `utils/constants.py` (not direct env reads).
 - For tests, set env before importing constants, or reload constants deliberately.
 

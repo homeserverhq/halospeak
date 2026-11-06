@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from insanely_fast_whisper_rocm.webui.handlers import TranscriptionConfig, transcribe
+from halospeak.webui.handlers import TranscriptionConfig, transcribe
 
 
 @pytest.fixture
@@ -20,10 +20,10 @@ def mock_pipeline_and_stabilizer() -> Generator[
     """
     with (
         patch(
-            "insanely_fast_whisper_rocm.webui.handlers.create_orchestrator"
+            "halospeak.webui.handlers.create_orchestrator"
         ) as mock_create_orchestrator,
         patch(
-            "insanely_fast_whisper_rocm.webui.handlers.stabilize_timestamps"
+            "halospeak.webui.handlers.stabilize_timestamps"
         ) as mock_stabilize,
     ):
         mock_orchestrator = MagicMock()

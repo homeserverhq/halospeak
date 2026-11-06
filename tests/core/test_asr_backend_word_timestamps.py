@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.asr_backend import (
+from halospeak.core.asr_backend import (
     HuggingFaceBackend,
     HuggingFaceBackendConfig,
 )

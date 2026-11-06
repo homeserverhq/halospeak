@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from insanely_fast_whisper_rocm.cli.progress_tqdm import TqdmProgressReporter
+from halospeak.cli.progress_tqdm import TqdmProgressReporter
 
 
 class _FakeBar:
@@ -53,7 +53,7 @@ def fake_tqdm(monkeypatch: pytest.MonkeyPatch) -> _FakeTqdmModule:
     """
     fake_module = _FakeTqdmModule()
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.cli.progress_tqdm.tqdm", fake_module
+        "halospeak.cli.progress_tqdm.tqdm", fake_module
     )
     return fake_module
 

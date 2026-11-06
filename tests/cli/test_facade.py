@@ -8,11 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from insanely_fast_whisper_rocm.cli.facade import CLIFacade
-from insanely_fast_whisper_rocm.core.asr_backend import HuggingFaceBackendConfig
-from insanely_fast_whisper_rocm.core.cancellation import CancellationToken
-from insanely_fast_whisper_rocm.core.errors import TranscriptionError
-from insanely_fast_whisper_rocm.core.progress import ProgressCallback
+from halospeak.cli.facade import CLIFacade
+from halospeak.core.asr_backend import HuggingFaceBackendConfig
+from halospeak.core.cancellation import CancellationToken
+from halospeak.core.errors import TranscriptionError
+from halospeak.core.progress import ProgressCallback
 
 
 class RecordingBackend:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""User configuration setup script for Insanely Fast Whisper API.
+"""User configuration setup script for HaloSpeak API.
 
 This script copies the .env.example file to the user's configuration
 directory to help them get started with custom settings.
@@ -20,7 +20,7 @@ def get_project_root() -> Path:
 
 def get_user_config_dir() -> Path:
     """Return the user configuration directory."""
-    return Path.home() / ".config" / "insanely-fast-whisper-rocm"
+    return Path.home() / ".config" / "halospeak"
 
 
 def get_source_env_file(project_root: Path) -> Path:

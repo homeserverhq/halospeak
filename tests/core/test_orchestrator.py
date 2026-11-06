@@ -9,13 +9,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.asr_backend import HuggingFaceBackendConfig
-from insanely_fast_whisper_rocm.core.errors import (
+from halospeak.core.asr_backend import HuggingFaceBackendConfig
+from halospeak.core.errors import (
     InferenceOOMError,
     ModelLoadingOOMError,
     TranscriptionError,
 )
-from insanely_fast_whisper_rocm.core.orchestrator import TranscriptionOrchestrator
+from halospeak.core.orchestrator import TranscriptionOrchestrator
 
 
 def _config(
@@ -45,7 +45,7 @@ def test_run_transcription_success_records_attempt_history(
     process = Mock(return_value={"text": "ok"})
 
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.borrow_pipeline",
+        "halospeak.core.orchestrator.borrow_pipeline",
         lambda *args, **kwargs: _borrow_pipeline_with_process(process),
     )
 
@@ -71,12 +71,12 @@ def test_run_transcription_inference_oom_reduces_batch_then_succeeds(
     process = Mock(side_effect=[InferenceOOMError("oom"), {"text": "ok"}])
 
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.borrow_pipeline",
+        "halospeak.core.orchestrator.borrow_pipeline",
         lambda *args, **kwargs: _borrow_pipeline_with_process(process),
     )
     invalidate = Mock()
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.invalidate_gpu_cache",
+        "halospeak.core.orchestrator.invalidate_gpu_cache",
         invalidate,
     )
 
@@ -118,12 +118,12 @@ def test_run_transcription_inference_oom_then_cpu_fallback(
     )
 
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.borrow_pipeline",
+        "halospeak.core.orchestrator.borrow_pipeline",
         lambda *args, **kwargs: _borrow_pipeline_with_process(process),
     )
     invalidate = Mock()
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.invalidate_gpu_cache",
+        "halospeak.core.orchestrator.invalidate_gpu_cache",
         invalidate,
     )
 
@@ -151,12 +151,12 @@ def test_run_transcription_model_loading_oom_goes_directly_to_cpu(
     process = Mock(side_effect=[ModelLoadingOOMError("oom"), {"text": "ok"}])
 
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.borrow_pipeline",
+        "halospeak.core.orchestrator.borrow_pipeline",
         lambda *args, **kwargs: _borrow_pipeline_with_process(process),
     )
     invalidate = Mock()
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.invalidate_gpu_cache",
+        "halospeak.core.orchestrator.invalidate_gpu_cache",
         invalidate,
     )
 
@@ -181,7 +181,7 @@ def test_run_transcription_oom_on_cpu_is_not_recoverable(
     process = Mock(side_effect=InferenceOOMError("oom"))
 
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.borrow_pipeline",
+        "halospeak.core.orchestrator.borrow_pipeline",
         lambda *args, **kwargs: _borrow_pipeline_with_process(process),
     )
 
@@ -201,7 +201,7 @@ def test_run_transcription_unexpected_exception_wraps(
     process = Mock(side_effect=RuntimeError("boom"))
 
     monkeypatch.setattr(
-        "insanely_fast_whisper_rocm.core.orchestrator.borrow_pipeline",
+        "halospeak.core.orchestrator.borrow_pipeline",
         lambda *args, **kwargs: _borrow_pipeline_with_process(process),
     )
 

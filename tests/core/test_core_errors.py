@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.errors import (
+from halospeak.core.errors import (
     InferenceOOMError,
     ModelLoadingOOMError,
     OutOfMemoryError,

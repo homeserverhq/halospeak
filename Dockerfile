@@ -18,7 +18,7 @@ RUN mkdir -p /models \
 
 FROM python:3.10-slim-bookworm
 
-LABEL org.opencontainers.image.source="https://github.com/beecave-homelab/insanely-fast-whisper-rocm"
+LABEL org.opencontainers.image.source="https://github.com/homeserverhq/halospeak"
 
 ARG HSA_OVERRIDE_GFX_VERSION=
 
@@ -77,8 +77,10 @@ COPY --from=dpdfnet-model /models/DPDFNet-LICENSE /app/models/DPDFNet-LICENSE
 COPY openapi.yaml /app/
 COPY pyproject.toml /app/
 COPY LICENSE.txt /app/
+COPY NOTICE.md /app/
+COPY LICENSES /app/LICENSES/
 COPY THIRD_PARTY_NOTICES.md /app/
-COPY ./insanely_fast_whisper_rocm /app/insanely_fast_whisper_rocm/
+COPY ./halospeak /app/halospeak/
 
 # Install the local package itself without re-resolving dependencies.
 RUN pip install --no-cache-dir --no-deps .
@@ -92,4 +94,4 @@ EXPOSE 8888
 EXPOSE 7860
 
 # Use the package entrypoint so host/port are controlled by env vars.
-CMD ["insanely-fast-whisper-rocm"]
+CMD ["halospeak"]

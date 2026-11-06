@@ -7,7 +7,7 @@ Usage:
       --output-dir out/ \
       --format txt --format srt [--debug]
 
-Requires: insanely_fast_whisper_rocm in PYTHONPATH or installed.
+Requires: halospeak in PYTHONPATH or installed.
 """
 
 from __future__ import annotations
@@ -21,11 +21,11 @@ import click
 
 # Import formatters from core
 try:
-    from insanely_fast_whisper_rocm.core.formatters import SrtFormatter, TxtFormatter
+    from halospeak.core.formatters import SrtFormatter, TxtFormatter
 except ImportError:
     print(
         "Error: Could not import formatters. Make sure "
-        "insanely_fast_whisper_rocm is installed or PYTHONPATH is set."
+        "halospeak is installed or PYTHONPATH is set."
     )
     sys.exit(1)
 

@@ -1,4 +1,4 @@
-"""Tests for insanely_fast_whisper_rocm.core.cancellation module.
+"""Tests for halospeak.core.cancellation module.
 
 This module contains tests for cooperative cancellation utilities including
 CancellationToken, CancellationScope, and cancellation_scope context manager.
@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.cancellation import (
+from halospeak.core.cancellation import (
     CancellationScope,
     CancellationToken,
     cancellation_scope,
 )
-from insanely_fast_whisper_rocm.core.errors import TranscriptionCancelledError
+from halospeak.core.errors import TranscriptionCancelledError
 
 
 class TestCancellationToken:

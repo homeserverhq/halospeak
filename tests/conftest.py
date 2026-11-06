@@ -72,7 +72,7 @@ def webui_server(request: pytest.FixtureRequest) -> Generator[str, None, None]:
         [
             sys.executable,
             "-m",
-            "insanely_fast_whisper_rocm.webui",
+            "halospeak.webui",
             "--model",
             "openai/whisper-tiny",
             "--port",

@@ -12,11 +12,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from insanely_fast_whisper_rocm.core.asr_backend import (
+from halospeak.core.asr_backend import (
     HuggingFaceBackend,
     HuggingFaceBackendConfig,
 )
-from insanely_fast_whisper_rocm.core.errors import (
+from halospeak.core.errors import (
     ModelLoadingOOMError,
     TranscriptionError,
 )
@@ -54,19 +54,19 @@ def _stub_model_load(
     """
     mock_model.to.return_value = mock_model
     with patch(
-        "insanely_fast_whisper_rocm.core.asr_backend.AutoModelForSpeechSeq2Seq.from_pretrained",
+        "halospeak.core.asr_backend.AutoModelForSpeechSeq2Seq.from_pretrained",
         return_value=mock_model,
     ):
         with patch(
-            "insanely_fast_whisper_rocm.core.asr_backend.AutoTokenizer.from_pretrained",
+            "halospeak.core.asr_backend.AutoTokenizer.from_pretrained",
             return_value=MagicMock(),
         ):
             with patch(
-                "insanely_fast_whisper_rocm.core.asr_backend.AutoFeatureExtractor.from_pretrained",
+                "halospeak.core.asr_backend.AutoFeatureExtractor.from_pretrained",
                 return_value=MagicMock(),
             ):
                 with patch(
-                    "insanely_fast_whisper_rocm.core.asr_backend.pipeline",
+                    "halospeak.core.asr_backend.pipeline",
                     return_value=MagicMock(model=mock_model),
                 ):
                     backend._initialize_pipeline()
@@ -152,7 +152,7 @@ def test_warning_logged_when_model_on_cpu_despite_non_cpu_request() -> None:
     mock_model.config = types.SimpleNamespace(lang_to_id=None, task_to_id=None)
 
     with patch(
-        "insanely_fast_whisper_rocm.core.asr_backend.logger.warning"
+        "halospeak.core.asr_backend.logger.warning"
     ) as mock_warn:
         _stub_model_load(backend, mock_model)
 

@@ -1,6 +1,6 @@
 """Tests for configurable idle-timeout model release in backend_cache.
 
-Covers the ``IFW_MODEL_RELEASE_TIMEOUT_SECONDS`` feature: immediate release
+Covers the ``HALOSPEAK_MODEL_RELEASE_TIMEOUT_SECONDS`` feature: immediate release
 (timeout=0), delayed release via a cancellable timer, reacquire race,
 generation-guarded stale-timer suppression, eager-release precedence, and
 interaction with forceful cache clearing / GPU invalidation.
@@ -21,9 +21,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from insanely_fast_whisper_rocm.core import backend_cache
-from insanely_fast_whisper_rocm.core.asr_backend import HuggingFaceBackendConfig
-from insanely_fast_whisper_rocm.core.backend_cache import (
+from halospeak.core import backend_cache
+from halospeak.core.asr_backend import HuggingFaceBackendConfig
+from halospeak.core.backend_cache import (
     acquire_pipeline,
     borrow_pipeline,
     clear_cache,
@@ -165,7 +165,7 @@ class TestReleasePolicyIsolation:
 
 
 class TestTimeoutParsing:
-    """Test ``IFW_MODEL_RELEASE_TIMEOUT_SECONDS`` parsing in constants.py."""
+    """Test ``HALOSPEAK_MODEL_RELEASE_TIMEOUT_SECONDS`` parsing in constants.py."""
 
     @pytest.mark.parametrize(
         "raw,expected",
@@ -189,19 +189,19 @@ class TestTimeoutParsing:
         self, raw: str | None, expected: float | None, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Verify that each raw value maps to the expected parsed result."""
-        import insanely_fast_whisper_rocm.utils.constants as const_mod
+        import halospeak.utils.constants as const_mod
 
         if raw is None:
-            monkeypatch.delenv("IFW_MODEL_RELEASE_TIMEOUT_SECONDS", raising=False)
+            monkeypatch.delenv("HALOSPEAK_MODEL_RELEASE_TIMEOUT_SECONDS", raising=False)
         else:
-            monkeypatch.setenv("IFW_MODEL_RELEASE_TIMEOUT_SECONDS", raw)
+            monkeypatch.setenv("HALOSPEAK_MODEL_RELEASE_TIMEOUT_SECONDS", raw)
 
         # Reload to re-evaluate the constant.
         reload(const_mod)
         assert const_mod.MODEL_RELEASE_TIMEOUT_SECONDS == expected
 
         # Restore module state for subsequent tests.
-        monkeypatch.delenv("IFW_MODEL_RELEASE_TIMEOUT_SECONDS", raising=False)
+        monkeypatch.delenv("HALOSPEAK_MODEL_RELEASE_TIMEOUT_SECONDS", raising=False)
         reload(const_mod)
 
 
@@ -220,9 +220,9 @@ class TestTimeoutRelease:
         release_policy(False, 0.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -260,9 +260,9 @@ class TestTimeoutRelease:
 
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as backend_class,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             backend_class.return_value.close.side_effect = close_backend
             _pipeline, key = acquire_pipeline(_cfg())
@@ -293,9 +293,9 @@ class TestTimeoutRelease:
 
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as backend_class,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             first_backend = MagicMock()
             first_backend.close.side_effect = close_first_backend
@@ -352,9 +352,9 @@ class TestTimeoutRelease:
         release_policy(False, 300.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -382,9 +382,9 @@ class TestTimeoutRelease:
         release_policy(False, 60.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -406,9 +406,9 @@ class TestTimeoutRelease:
         release_policy(False, 120.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -433,9 +433,9 @@ class TestTimeoutRelease:
         release_policy(False, 10.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -467,9 +467,9 @@ class TestTimeoutRelease:
         release_policy(False, 10.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             first_backend = MagicMock()
             first_backend.close = Mock()
@@ -501,9 +501,9 @@ class TestTimeoutRelease:
         release_policy(True, 300.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -524,9 +524,9 @@ class TestTimeoutRelease:
         release_policy(False, None)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -546,8 +546,8 @@ class TestTimeoutRelease:
         """borrow_pipeline schedules a timer on exit when timeout is positive."""
         release_policy(False, 45.0)
         with (
-            patch("insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"),
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.HuggingFaceBackend"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             with borrow_pipeline(_cfg()):
                 pass
@@ -571,9 +571,9 @@ class TestForcefulClearCancelsTimers:
         release_policy(False, 90.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -605,9 +605,9 @@ class TestForcefulClearCancelsTimers:
         )
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -640,9 +640,9 @@ class TestTimedReleaseEdgeCases:
         release_policy(False, 10.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()
@@ -668,9 +668,9 @@ class TestTimedReleaseEdgeCases:
         release_policy(False, 10.0)
         with (
             patch(
-                "insanely_fast_whisper_rocm.core.backend_cache.HuggingFaceBackend"
+                "halospeak.core.backend_cache.HuggingFaceBackend"
             ) as mb,
-            patch("insanely_fast_whisper_rocm.core.backend_cache.WhisperPipeline"),
+            patch("halospeak.core.backend_cache.WhisperPipeline"),
         ):
             mock_backend = MagicMock()
             mock_backend.close = Mock()

@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 import torch
 
-from insanely_fast_whisper_rocm.core.errors import DiarizationError
-from insanely_fast_whisper_rocm.core.integrations.diarization import (
+from halospeak.core.errors import DiarizationError
+from halospeak.core.integrations.diarization import (
     _align_speakers_to_segments,
     _preload_audio_as_waveform,
     clear_diarization_cache,
@@ -52,7 +52,7 @@ def test_diarize__raises_when_pyannote_not_installed() -> None:
     """diarize() raises DiarizationError when Pipeline is None."""
     result = _sample_result()
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+        "halospeak.core.integrations.diarization.Pipeline",
         None,
     ):
         with pytest.raises(DiarizationError, match="pyannote.audio is not installed"):
@@ -73,15 +73,15 @@ def test_get_or_create_pipeline__uses_local_cache_without_hf_token() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._resolve_local_pipeline_dir",
+            "halospeak.core.integrations.diarization._resolve_local_pipeline_dir",
             return_value=Path("/cache/pyannote"),
         ),
     ):
-        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        from halospeak.core.integrations.diarization import (
             _get_or_create_pipeline,
         )
 
@@ -95,16 +95,16 @@ def test_get_or_create_pipeline__raises_when_uncached_and_no_hf_token() -> None:
     """An uncached pipeline requires HF_TOKEN for the initial download."""
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             MagicMock(),
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._resolve_local_pipeline_dir",
+            "halospeak.core.integrations.diarization._resolve_local_pipeline_dir",
             return_value=None,
         ),
         pytest.raises(DiarizationError, match="HF_TOKEN") as exc_info,
     ):
-        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        from halospeak.core.integrations.diarization import (
             _get_or_create_pipeline,
         )
 
@@ -115,7 +115,7 @@ def test_get_or_create_pipeline__raises_when_uncached_and_no_hf_token() -> None:
 
 def test_diarize__runs_without_hf_token_when_pipeline_is_cached() -> None:
     """diarize() no longer blocks when an empty token accompanies a cached model."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     annotation = MagicMock()
     annotation.itertracks.return_value = [
@@ -146,7 +146,7 @@ def test_diarize__runs_without_hf_token_when_pipeline_is_cached() -> None:
 
 def test_diarize__falls_back_to_cpu_when_cuda_unavailable() -> None:
     """CUDA requests fall back to CPU when running on a CPU-only runtime."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     annotation = MagicMock()
     annotation.itertracks.return_value = [
@@ -185,7 +185,7 @@ def test_diarize__falls_back_to_cpu_when_cuda_unavailable() -> None:
 
 def test_diarize__raises_when_cuda_unavailable_and_fallback_disabled() -> None:
     """CUDA-unavailable errors are explicit when fallback is disabled."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     with (
         patch.object(diarization, "Pipeline", MagicMock()),
@@ -221,7 +221,7 @@ def test_diarize__raises_on_gated_model_auth_errors(status_code: int) -> None:
     mock_pipeline_cls.from_pretrained.side_effect = load_exc
 
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+        "halospeak.core.integrations.diarization.Pipeline",
         mock_pipeline_cls,
     ):
         with pytest.raises(
@@ -262,11 +262,11 @@ def test_diarize__assigns_speakers_to_chunks() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -353,10 +353,10 @@ def test_get_or_create_pipeline__reuses_cached_instance_for_same_config() -> Non
     mock_pipeline_cls.from_pretrained.return_value = mock_pipeline_instance
 
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+        "halospeak.core.integrations.diarization.Pipeline",
         mock_pipeline_cls,
     ):
-        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        from halospeak.core.integrations.diarization import (
             _get_or_create_pipeline,
         )
 
@@ -380,10 +380,10 @@ def test_get_or_create_pipeline__creates_separate_instance_for_different_config(
     mock_pipeline_cls.from_pretrained.side_effect = [mock_a, mock_b]
 
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+        "halospeak.core.integrations.diarization.Pipeline",
         mock_pipeline_cls,
     ):
-        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        from halospeak.core.integrations.diarization import (
             _get_or_create_pipeline,
         )
 
@@ -403,10 +403,10 @@ def test_get_or_create_pipeline__creates_separate_entry_for_different_token() ->
     mock_pipeline_cls.from_pretrained.side_effect = [mock_a, mock_b]
 
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+        "halospeak.core.integrations.diarization.Pipeline",
         mock_pipeline_cls,
     ):
-        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        from halospeak.core.integrations.diarization import (
             _get_or_create_pipeline,
         )
 
@@ -425,10 +425,10 @@ def test_clear_diarization_cache__empties_cache() -> None:
     mock_pipeline_cls.from_pretrained.return_value = mock_pipeline_instance
 
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+        "halospeak.core.integrations.diarization.Pipeline",
         mock_pipeline_cls,
     ):
-        from insanely_fast_whisper_rocm.core.integrations.diarization import (
+        from halospeak.core.integrations.diarization import (
             _CACHE,
             _get_or_create_pipeline,
         )
@@ -442,7 +442,7 @@ def test_clear_diarization_cache__empties_cache() -> None:
 
 def test_gpu_cache_cleanup__defers_migration_until_all_callers_release() -> None:
     """GPU cleanup waits for every active user before migrating a pipeline."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     pipeline = MagicMock()
     pipeline.to.return_value = pipeline
@@ -493,11 +493,11 @@ def test_diarize__raises_on_inference_error() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -544,11 +544,11 @@ def test_diarize__retries_cpu_on_rocm_miopen_error(
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torch.cuda.is_available", return_value=True),
@@ -581,15 +581,15 @@ def test_diarize__does_not_retry_cpu_when_fallback_disabled() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.DIARIZATION_ALLOW_CPU_FALLBACK",
+            "halospeak.core.integrations.diarization.DIARIZATION_ALLOW_CPU_FALLBACK",
             False,
         ),
         patch("torch.cuda.is_available", return_value=True),
@@ -629,11 +629,11 @@ def test_diarize__emits_timing_logs(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level("INFO")
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -672,11 +672,11 @@ def test_diarize__returns_unchanged_when_no_chunks_and_no_segments() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -711,11 +711,11 @@ def test_diarize__returns_unchanged_when_no_speaker_turns() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -780,11 +780,11 @@ def test_diarize__preloads_audio_when_torchcodec_unavailable() -> None:
     mock_waveform = MagicMock(shape=torch.Size([1, 48000]))
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -823,15 +823,15 @@ def test_diarize__passes_file_path_when_torchcodec_available() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             True,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.DIARIZATION_PRELOAD_AUDIO",
+            "halospeak.core.integrations.diarization.DIARIZATION_PRELOAD_AUDIO",
             False,
         ),
     ):
@@ -865,11 +865,11 @@ def test_diarize__preloads_audio_when_torchcodec_available_by_default() -> None:
     mock_waveform = MagicMock(shape=torch.Size([1, 48000]))
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             True,
         ),
         patch("torchaudio.load", return_value=(mock_waveform, 16000)),
@@ -918,11 +918,11 @@ def test_diarize__falls_back_to_segments_when_chunks_removed_by_stabilization() 
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -971,11 +971,11 @@ def test_diarize__preserves_stabilized_segments_structure() -> None:
 
     with (
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.Pipeline",
+            "halospeak.core.integrations.diarization.Pipeline",
             mock_pipeline_cls,
         ),
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization._TORCHCODEC_AVAILABLE",
+            "halospeak.core.integrations.diarization._TORCHCODEC_AVAILABLE",
             False,
         ),
         patch("torchaudio.load") as mock_load,
@@ -1032,7 +1032,7 @@ def test_preload_audio_as_waveform__uses_ffmpeg_decode_for_m4a(
         patch("subprocess.run", return_value=mock_completed) as mock_run,
         patch("tempfile.NamedTemporaryFile") as mock_tmp,
         patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.DIARIZATION_FFMPEG_TIMEOUT_SECONDS",
+            "halospeak.core.integrations.diarization.DIARIZATION_FFMPEG_TIMEOUT_SECONDS",
             12,
         ),
     ):
@@ -1101,7 +1101,7 @@ def test_preload_audio_as_waveform__raises_error_on_ffmpeg_timeout(
 @pytest.mark.parametrize("outcome", ["success", "gpu_failure", "cpu_failure"])
 def test_diarize__always_releases_gpu_cache(outcome: str) -> None:
     """Cleanup runs on success, inference errors, and failed CPU retries."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     gpu = MagicMock(return_value=MagicMock(spec=["itertracks"]))
     gpu.return_value.itertracks.return_value = []
@@ -1150,7 +1150,7 @@ def test_rocm_native_diarization_kernels__disables_and_restores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The ROCm workaround disables MIOpen only inside its context."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     fake_torch = _fake_torch("7.0.0-test")
     monkeypatch.setattr(diarization, "DIARIZATION_DISABLE_MIOPEN", True)
@@ -1166,7 +1166,7 @@ def test_rocm_native_diarization_kernels__noop_on_non_rocm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The workaround leaves CUDA/MIOpen untouched outside ROCm."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     fake_torch = _fake_torch(None)
     monkeypatch.setattr(diarization, "DIARIZATION_DISABLE_MIOPEN", True)
@@ -1180,7 +1180,7 @@ def test_rocm_native_diarization_kernels__noop_on_non_rocm(
 
 def test_diarize__uses_exclusive_annotation_and_returns_embeddings() -> None:
     """Exclusive turns are aligned and speaker embeddings are returned."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     regular = MagicMock()
     regular.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
@@ -1234,7 +1234,7 @@ def test_diarize__uses_exclusive_annotation_and_returns_embeddings() -> None:
 
 def test_cluster_embedding_vectors__separates_two_groups() -> None:
     """KMeans clusters normalized embeddings into the expected groups."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     vectors = [
         [1.0, 0.0],
@@ -1258,7 +1258,7 @@ def test_cluster_embedding_vectors__separates_two_groups() -> None:
 
 def test_diarize__uses_segment_embedding_clustering() -> None:
     """Segment embedding clustering assigns speakers and returns centroids."""
-    from insanely_fast_whisper_rocm.core.integrations import diarization
+    from halospeak.core.integrations import diarization
 
     regular = MagicMock()
     regular.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]

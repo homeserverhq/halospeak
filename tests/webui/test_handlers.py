@@ -9,21 +9,21 @@ from pathlib import Path
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.errors import (
+from halospeak.core.errors import (
     DiarizationError,
     OutOfMemoryError,
     TranscriptionCancelledError,
     TranscriptionError,
 )
-from insanely_fast_whisper_rocm.utils.filename_generator import TaskType
-from insanely_fast_whisper_rocm.webui import handlers
-from insanely_fast_whisper_rocm.webui.handlers import (
+from halospeak.utils.filename_generator import TaskType
+from halospeak.webui import handlers
+from halospeak.webui.handlers import (
     FileHandlingConfig,
     TranscriptionConfig,
     _is_stabilization_corrupt,
     _prepare_temp_downloadable_file,
 )
-from insanely_fast_whisper_rocm.webui.zip_creator import (
+from halospeak.webui.zip_creator import (
     BatchZipBuilder,
     ZipConfiguration,
 )
@@ -127,11 +127,11 @@ def test_transcribe_handler_fallback_on_corrupted_stabilization() -> None:
 
     with (
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.create_orchestrator",
+            "halospeak.webui.handlers.create_orchestrator",
             return_value=mock_orchestrator,
         ) as mock_create_orchestrator,
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.stabilize_timestamps"
+            "halospeak.webui.handlers.stabilize_timestamps"
         ) as mock_stabilize,
     ):
         mock_stabilize.return_value = corrupted_result
@@ -163,7 +163,7 @@ def test_transcribe_raises_on_progress_cancellation() -> None:
     file_config = FileHandlingConfig()
 
     with unittest.mock.patch(
-        "insanely_fast_whisper_rocm.webui.handlers.create_orchestrator"
+        "halospeak.webui.handlers.create_orchestrator"
     ) as mock_create_orchestrator:
         mock_create_orchestrator.side_effect = AssertionError(
             "create_orchestrator should not be called"
@@ -240,11 +240,11 @@ def test_transcribe_with_video_input() -> None:
 
         with (
             unittest.mock.patch(
-                "insanely_fast_whisper_rocm.webui.handlers.create_orchestrator",
+                "halospeak.webui.handlers.create_orchestrator",
                 return_value=mock_orchestrator,
             ),
             unittest.mock.patch(
-                "insanely_fast_whisper_rocm.webui.handlers.extract_audio_from_video"
+                "halospeak.webui.handlers.extract_audio_from_video"
             ) as mock_extract,
         ):
             mock_extract.return_value = str(Path(temp_dir) / "extracted.wav")
@@ -265,7 +265,7 @@ def test_transcribe_with_video_extraction_error() -> None:
 
         with (
             unittest.mock.patch(
-                "insanely_fast_whisper_rocm.webui.handlers.extract_audio_from_video"
+                "halospeak.webui.handlers.extract_audio_from_video"
             ) as mock_extract,
         ):
             mock_extract.side_effect = RuntimeError("Extraction failed")
@@ -273,7 +273,7 @@ def test_transcribe_with_video_extraction_error() -> None:
             config = TranscriptionConfig()
             file_config = FileHandlingConfig()
 
-            from insanely_fast_whisper_rocm.core.errors import TranscriptionError
+            from halospeak.core.errors import TranscriptionError
 
             with pytest.raises(TranscriptionError, match="Extraction failed"):
                 handlers.transcribe(str(video_path), config, file_config)
@@ -289,7 +289,7 @@ def test_transcribe_with_progress_tracker() -> None:
     mock_progress.cancelled = False
 
     with unittest.mock.patch(
-        "insanely_fast_whisper_rocm.webui.handlers.create_orchestrator",
+        "halospeak.webui.handlers.create_orchestrator",
         return_value=mock_orchestrator,
     ):
         config = TranscriptionConfig()
@@ -313,11 +313,11 @@ def test_transcribe_with_chunk_duration_warning() -> None:
 
     with (
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.create_orchestrator",
+            "halospeak.webui.handlers.create_orchestrator",
             return_value=mock_orchestrator,
         ),
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.logger"
+            "halospeak.webui.handlers.logger"
         ) as mock_logger,
     ):
         config = TranscriptionConfig(chunk_duration=15.0, chunk_overlap=1.0)
@@ -373,7 +373,7 @@ def test_process_transcription_request_single_file() -> None:
         }
 
         with unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.transcribe",
+            "halospeak.webui.handlers.transcribe",
             return_value=mock_result,
         ):
             config = TranscriptionConfig()
@@ -412,7 +412,7 @@ def test_process_transcription_request_multiple_files() -> None:
         }
 
         with unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.transcribe",
+            "halospeak.webui.handlers.transcribe",
             side_effect=[mock_result1, mock_result2],
         ):
             config = TranscriptionConfig()
@@ -436,7 +436,7 @@ def test_process_transcription_request_with_error() -> None:
         audio_path.write_text("fake audio")
 
         with unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.transcribe",
+            "halospeak.webui.handlers.transcribe",
             side_effect=TranscriptionError("Test error"),
         ):
             config = TranscriptionConfig()
@@ -459,7 +459,7 @@ def test_process_transcription_request_with_cancellation() -> None:
         audio_path.write_text("fake audio")
 
         with unittest.mock.patch(
-            "insanely_fast_whisper_rocm.webui.handlers.transcribe",
+            "halospeak.webui.handlers.transcribe",
             side_effect=TranscriptionCancelledError("Cancelled"),
         ):
             config = TranscriptionConfig()
@@ -517,7 +517,7 @@ def test_transcribe__retains_text_and_reports_diarization_error(
             handlers, "create_orchestrator", return_value=orchestrator
         ),
         unittest.mock.patch(
-            "insanely_fast_whisper_rocm.core.integrations.diarization.diarize",
+            "halospeak.core.integrations.diarization.diarize",
             side_effect=error,
         ),
     ):

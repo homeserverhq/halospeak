@@ -20,7 +20,7 @@ FROM ${ROCM_PYTORCH_BASE}
 
 ARG HSA_OVERRIDE_GFX_VERSION=
 
-LABEL org.opencontainers.image.source="https://github.com/beecave-homelab/insanely-fast-whisper-rocm"
+LABEL org.opencontainers.image.source="https://github.com/homeserverhq/halospeak"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -72,10 +72,12 @@ COPY --from=dpdfnet-model /models/DPDFNet-LICENSE /app/models/DPDFNet-LICENSE
 COPY pyproject.toml /app/
 COPY openapi.yaml /app/
 COPY LICENSE.txt /app/
+COPY NOTICE.md /app/
+COPY LICENSES /app/LICENSES/
 COPY THIRD_PARTY_NOTICES.md /app/
 
 # Copy the application source code.
-COPY ./insanely_fast_whisper_rocm /app/insanely_fast_whisper_rocm/
+COPY ./halospeak /app/halospeak/
 
 # Install the local package itself.
 RUN pip install -U pip
@@ -94,4 +96,4 @@ EXPOSE 8889
 EXPOSE 7862
 
 # Use the package entrypoint so host/port are controlled by env vars.
-CMD ["insanely-fast-whisper-rocm"]
+CMD ["halospeak"]

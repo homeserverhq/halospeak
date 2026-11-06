@@ -1,6 +1,6 @@
 {
     "include": [
-        "insanely_fast_whisper_rocm",
+        "halospeak",
         "tests"
     ],
     "exclude": [
@@ -13,7 +13,7 @@
         "**/transcripts_zips"
     ],
     "extraPaths": [
-        "./insanely_fast_whisper_rocm"
+        "./halospeak"
     ],
     "venvPath": ".",
     "venv": ".venv",

@@ -8,12 +8,12 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from insanely_fast_whisper_rocm.api.dependencies import (
+from halospeak.api.dependencies import (
     get_asr_pipeline,
     get_file_handler,
 )
-from insanely_fast_whisper_rocm.main import app
-from insanely_fast_whisper_rocm.utils import (
+from halospeak.main import app
+from halospeak.utils import (
     RESPONSE_FORMAT_JSON,
     RESPONSE_FORMAT_SRT,
     RESPONSE_FORMAT_TEXT,
@@ -123,7 +123,7 @@ def _post_file(
         (RESPONSE_FORMAT_VTT, "text/vtt; charset=utf-8"),
     ],
 )
-@patch("insanely_fast_whisper_rocm.api.routes.create_orchestrator")
+@patch("halospeak.api.routes.create_orchestrator")
 def test_response_format_variants(
     mock_create_orchestrator: Mock,
     endpoint: str,

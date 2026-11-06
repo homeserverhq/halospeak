@@ -20,8 +20,8 @@ def test_setup_config_script_runs_without_import_errors() -> None:
         content = f.read()
 
     # Verify the script doesn't import from the main package
-    assert "from insanely_fast_whisper_rocm" not in content
-    assert "import insanely_fast_whisper_rocm" not in content
+    assert "from halospeak" not in content
+    assert "import halospeak" not in content
 
     # Verify it only uses stdlib imports
     assert "import shutil" in content
@@ -41,11 +41,11 @@ def test_setup_config_helper_functions() -> None:
 
     # Test get_project_root
     project_root = script_globals["get_project_root"]()
-    assert project_root.name.startswith("insanely-fast-whisper-rocm")
+    assert (project_root / "pyproject.toml").is_file()
 
     # Test get_user_config_dir
     user_config_dir = script_globals["get_user_config_dir"]()
-    assert user_config_dir == Path.home() / ".config" / "insanely-fast-whisper-rocm"
+    assert user_config_dir == Path.home() / ".config" / "halospeak"
 
     # Test get_source_env_file
     source_env_file = script_globals["get_source_env_file"](project_root)
@@ -90,7 +90,7 @@ def test_setup_config_main_creates_config() -> None:
                 script_globals["main"]()
 
             # Verify config file was created
-            user_config_dir = tmpdir_path / ".config" / "insanely-fast-whisper-rocm"
+            user_config_dir = tmpdir_path / ".config" / "halospeak"
             user_env_file = user_config_dir / ".env"
             assert user_env_file.exists()
             assert user_env_file.read_text() == "TEST_VAR=value\n"
@@ -108,7 +108,7 @@ def test_setup_config_main_overwrites_existing() -> None:
         env_example.write_text("NEW_VAR=new_value\n")
 
         # Create existing user config
-        user_config_dir = tmpdir_path / ".config" / "insanely-fast-whisper-rocm"
+        user_config_dir = tmpdir_path / ".config" / "halospeak"
         user_config_dir.mkdir(parents=True)
         user_env_file = user_config_dir / ".env"
         user_env_file.write_text("OLD_VAR=old_value\n")
@@ -151,7 +151,7 @@ def test_setup_config_main_preserves_existing() -> None:
         env_example.write_text("NEW_VAR=new_value\n")
 
         # Create existing user config
-        user_config_dir = tmpdir_path / ".config" / "insanely-fast-whisper-rocm"
+        user_config_dir = tmpdir_path / ".config" / "halospeak"
         user_config_dir.mkdir(parents=True)
         user_env_file = user_config_dir / ".env"
         user_env_file.write_text("OLD_VAR=old_value\n")
@@ -212,7 +212,7 @@ def test_setup_config_handles_missing_env_example() -> None:
             script_globals["main"]()
 
             # Verify config file was NOT created
-            user_config_dir = tmpdir_path / ".config" / "insanely-fast-whisper-rocm"
+            user_config_dir = tmpdir_path / ".config" / "halospeak"
             user_env_file = user_config_dir / ".env"
             assert not user_env_file.exists()
 
@@ -229,7 +229,7 @@ def test_setup_config_handles_keyboard_interrupt() -> None:
         env_example.write_text("TEST_VAR=value\n")
 
         # Create existing user config
-        user_config_dir = tmpdir_path / ".config" / "insanely-fast-whisper-rocm"
+        user_config_dir = tmpdir_path / ".config" / "halospeak"
         user_config_dir.mkdir(parents=True)
         user_env_file = user_config_dir / ".env"
         user_env_file.write_text("OLD_VAR=old_value\n")

@@ -1,10 +1,10 @@
-"""Tests for setup_timezone function in insanely_fast_whisper_rocm.__main__."""
+"""Tests for setup_timezone function in halospeak.__main__."""
 
 import os
 from unittest.mock import Mock, patch
 
-from insanely_fast_whisper_rocm.__main__ import setup_timezone
-from insanely_fast_whisper_rocm.utils import constants
+from halospeak.__main__ import setup_timezone
+from halospeak.utils import constants
 
 
 class TestSetupTimezone:
@@ -12,7 +12,7 @@ class TestSetupTimezone:
 
     @patch("time.tzset")
     @patch("time.tzname", new=["EST", "EDT"])
-    @patch("insanely_fast_whisper_rocm.utils.constants.logger.info")
+    @patch("halospeak.utils.constants.logger.info")
     def test_setup_timezone_success(
         self, mock_logging_info: Mock, mock_tzset: Mock
     ) -> None:
@@ -33,8 +33,8 @@ class TestSetupTimezone:
             expected_timezone,
         )
 
-    @patch("insanely_fast_whisper_rocm.utils.constants.os.environ")
-    @patch("insanely_fast_whisper_rocm.utils.constants.logger.warning")
+    @patch("halospeak.utils.constants.os.environ")
+    @patch("halospeak.utils.constants.logger.warning")
     def test_setup_timezone_oserror(
         self, mock_logging_warning: Mock, mock_environ: Mock
     ) -> None:
@@ -53,7 +53,7 @@ class TestSetupTimezone:
         )
 
     @patch("time.tzset", side_effect=TypeError("Invalid timezone"))
-    @patch("insanely_fast_whisper_rocm.utils.constants.logger.warning")
+    @patch("halospeak.utils.constants.logger.warning")
     def test_setup_timezone_typeerror(
         self, mock_logging_warning: Mock, mock_tzset: Mock
     ) -> None:
@@ -74,7 +74,7 @@ class TestSetupTimezone:
 
     @patch("time.tzname", new=["EST"])  # Missing EDT
     @patch("time.tzset")
-    @patch("insanely_fast_whisper_rocm.utils.constants.logger.warning")
+    @patch("halospeak.utils.constants.logger.warning")
     def test_setup_timezone_indexerror(
         self, mock_logging_warning: Mock, mock_tzset: Mock
     ) -> None:

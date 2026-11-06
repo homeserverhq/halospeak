@@ -14,14 +14,14 @@ from fastapi import FastAPI, UploadFile
 from fastapi.testclient import TestClient
 from tests.helpers import get_project_version
 
-from insanely_fast_whisper_rocm.api.app import create_app
-from insanely_fast_whisper_rocm.api.dependencies import (
+from halospeak.api.app import create_app
+from halospeak.api.dependencies import (
     get_asr_pipeline,
     get_file_handler,
 )
-from insanely_fast_whisper_rocm.api.responses import ResponseFormatter
-from insanely_fast_whisper_rocm.main import app  # Assuming your FastAPI app is here
-from insanely_fast_whisper_rocm.utils import (
+from halospeak.api.responses import ResponseFormatter
+from halospeak.main import app  # Assuming your FastAPI app is here
+from halospeak.utils import (
     RESPONSE_FORMAT_JSON,
     RESPONSE_FORMAT_TEXT,
     FileHandler,
@@ -39,16 +39,23 @@ class TestAppFactory:
     def test_create_app_has_correct_metadata(self) -> None:
         """Test that the app has correct title, description, and version."""
         app = create_app()
-        assert app.title == "Insanely Fast Whisper API"
-        assert "FastAPI wrapper" in app.description
+        assert app.title == "HaloSpeak API"
+        assert "HaloSpeak" in app.description
         assert app.version == get_project_version()
 
     def test_create_app_has_routes(self) -> None:
         """Test that the app includes the expected routes."""
         app = create_app()
-        route_paths = [route.path for route in app.routes]
+        route_paths = [getattr(route, "path", None) for route in app.routes]
         assert "/v1/audio/transcriptions" in route_paths
         assert "/v1/audio/translations" in route_paths
+
+    def test_create_app_serves_logo_asset(self) -> None:
+        """Test that the HaloSpeak logo is served as a static asset."""
+        client = TestClient(create_app())
+        response = client.get("/assets/halospeak.png")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
 
     def test_create_app_has_middleware(self) -> None:
         """Test that the app has middleware configured."""
@@ -58,10 +65,9 @@ class TestAppFactory:
 
     def test_app_metadata(self) -> None:
         """Test that the app has correct title, description, and version."""
-        assert app.title == "Insanely Fast Whisper API"
-        assert (
-            "A FastAPI wrapper around the insanely-fast-whisper tool."
-            in app.description
+        assert app.title == "HaloSpeak API"
+        assert "HaloSpeak is an independent, ROCm-optimized Whisper ASR API" in (
+            app.description
         )
         assert app.version == get_project_version()
 
@@ -69,7 +75,7 @@ class TestAppFactory:
 class TestDependencies:
     """Test dependency injection providers."""
 
-    @patch("insanely_fast_whisper_rocm.api.dependencies.borrow_pipeline")
+    @patch("halospeak.api.dependencies.borrow_pipeline")
     def test_get_asr_pipeline_creates_pipeline(self, mock_borrow: Mock) -> None:
         """Test that get_asr_pipeline creates a properly configured pipeline."""
         # Setup mocks
@@ -259,7 +265,7 @@ class TestMiddleware:
         app = create_app()
         client = TestClient(app)
 
-        with patch("insanely_fast_whisper_rocm.api.middleware.logger") as mock_logger:
+        with patch("halospeak.api.middleware.logger") as mock_logger:
             # Make a request to trigger middleware
             _ = client.get("/docs")  # Use docs endpoint which should exist
 

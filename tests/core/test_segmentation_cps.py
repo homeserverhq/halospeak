@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.segmentation import (
+from halospeak.core.segmentation import (
     Segment,
     Word,
     _enforce_cps,
     segment_words,
 )
-from insanely_fast_whisper_rocm.utils import constants
+from halospeak.utils import constants
 
 
 def _build_words(

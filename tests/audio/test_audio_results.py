@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from insanely_fast_whisper_rocm.audio.results import merge_chunk_results
+from halospeak.audio.results import merge_chunk_results
 
 
 def test_merge_chunk_results_empty_list() -> None:

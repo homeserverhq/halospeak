@@ -1,18 +1,18 @@
 services:
-  insanely-fast-whisper-rocm-cpu:
+  halospeak-cpu:
     build:
       context: .
       dockerfile: Dockerfile.cpu
 
-    image: hshq/insanelyfastwhisper-cpu:v1
-    container_name: insanely-fast-whisper-rocm-cpu
+    image: hshq/halospeak-cpu:3.0.0
+    container_name: halospeak-cpu
     restart: unless-stopped
 
     stdin_open: true
     tty: true
 
     env_file:
-      - "$HOME/.config/insanely-fast-whisper-rocm/.env"
+      - "$HOME/.config/halospeak/.env"
 
     environment:
       # CPU ports are configurable to avoid clashing with the ROCm containers.
@@ -40,20 +40,20 @@ services:
     #################################################
     ## Default: Gradio WebUI without debug logging ##
     #################################################
-    command: ["python", "-m", "insanely_fast_whisper_rocm.webui"]
+    command: ["python", "-m", "halospeak.webui"]
     ##############################################
     ## Alternative commands (uncomment to use): ##
     ##############################################
     #
     # API only:
-    # command: ["python", "-m", "insanely_fast_whisper_rocm"]
+    # command: ["python", "-m", "halospeak"]
     #
     # CLI transcription example:
     # command:
     #   [
     #     "python",
     #     "-m",
-    #     "insanely_fast_whisper_rocm.cli",
+    #     "halospeak.cli",
     #     "transcribe",
     #     "tests/data/conversion-test-file.mp3",
     #     "--diarize",

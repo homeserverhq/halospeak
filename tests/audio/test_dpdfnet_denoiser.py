@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from insanely_fast_whisper_rocm.audio import dpdfnet_denoiser as denoiser
+from halospeak.audio import dpdfnet_denoiser as denoiser
 
 
 class _FakeModel:

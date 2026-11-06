@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from insanely_fast_whisper_rocm import ASRPipeline
+from halospeak import ASRPipeline
 
 
 def test_asr_pipeline_initialization() -> None:

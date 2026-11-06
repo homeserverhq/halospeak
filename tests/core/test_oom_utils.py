@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core.oom_utils import classify_oom_error
+from halospeak.core.oom_utils import classify_oom_error
 
 
 def test_classify_oom_error_non_runtime_error_returns_none() -> None:

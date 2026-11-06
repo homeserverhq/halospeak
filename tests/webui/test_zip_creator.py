@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from insanely_fast_whisper_rocm.webui.zip_creator import (
+from halospeak.webui.zip_creator import (
     BatchZipBuilder,
     ZipConfiguration,
     create_batch_zip,

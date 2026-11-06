@@ -1,1 +1,1 @@
-"""Test package for the Insanely Fast Whisper API."""
+"""Test package for the HaloSpeak API."""

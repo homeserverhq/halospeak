@@ -1,11 +1,11 @@
-"""Tests for the output formatters in `insanely_fast_whisper_rocm.core.formatters`."""
+"""Tests for the output formatters in `halospeak.core.formatters`."""
 
 from __future__ import annotations
 
 import pytest
 
-from insanely_fast_whisper_rocm.core import formatters
-from insanely_fast_whisper_rocm.core.formatters import (
+from halospeak.core import formatters
+from halospeak.core.formatters import (
     SrtFormatter,
     TxtFormatter,
     VttFormatter,
@@ -401,7 +401,7 @@ class TestResultToWords:
         word-level timestamps when average duration >= 1.5s (sparse audio with
         long silences between words).
         """
-        from insanely_fast_whisper_rocm.core.formatters import _result_to_words
+        from halospeak.core.formatters import _result_to_words
 
         # Sparse words: 27.34s total / 12 words = 2.28s avg
         # This should STILL be detected as word-level data
@@ -451,7 +451,7 @@ class TestResultToWords:
         When chunks contain multi-word sentences with long durations,
         they should be rejected as non-word-level data.
         """
-        from insanely_fast_whisper_rocm.core.formatters import _result_to_words
+        from halospeak.core.formatters import _result_to_words
 
         # Sentence-level chunks: each chunk is a full sentence spanning multiple seconds
         # Average duration: (23.84 + 24.96) / 2 = 24.4s - should reject

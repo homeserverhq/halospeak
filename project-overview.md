@@ -1,20 +1,20 @@
 ---
-repo: https://github.com/beecave-homelab/insanely-fast-whisper-rocm
+repo: https://github.com/homeserverhq/halospeak
 commit: aca7ee04e29a7f65fb82b27b474df47050494910
-updated: 2026-04-25T20:13:41Z
+updated: 2026-11-06T00:00:00Z
 ---
 
 <!-- SECTIONS:API,CLI,WEBUI,CI,DOCKER,TESTS -->
 
-# Project Overview | Insanely Fast Whisper API (ROCm)
+# Project Overview | HaloSpeak API (ROCm)
 
-A comprehensive Whisper-based speech recognition toolkit designed specifically to provide **AMD GPU (ROCm v6.4.1 & v7.0) support** for high-performance Automatic Speech Recognition (ASR) and translation. This package extends the capabilities of the original [insanely-fast-whisper](https://github.com/Vaibhavs10/insanely-fast-whisper) by providing multiple interfaces, ROCm compatibility, and production-ready architecture.
+A comprehensive Whisper-based speech recognition toolkit designed specifically to provide **AMD GPU (ROCm v6.4.1 & v7.0) support** for high-performance Automatic Speech Recognition (ASR) and translation. HaloSpeak is an independent fork that extends the capabilities of the original [insanely-fast-whisper](https://github.com/Vaibhavs10/insanely-fast-whisper) by providing multiple interfaces, ROCm compatibility, and production-ready architecture. See [NOTICE.md](./NOTICE.md) for provenance and trademark separation.
 
 > [!NOTE]
 > This overview is the **single source of truth** for developers working on this codebase.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org)
-[![Version](https://img.shields.io/badge/Version-v2.3.0-informational)](#version-summary)
+[![Version](https://img.shields.io/badge/Version-v3.0.0-informational)](#version-summary)
 [![API](https://img.shields.io/badge/API-FastAPI-green)](#api-server-details)
 [![CLI](https://img.shields.io/badge/CLI-Click-yellow)](#cli-command-line-interface-details)
 [![WebUI](https://img.shields.io/badge/WebUI-Gradio-orange)](#webui-gradio-interface-details)
@@ -50,8 +50,8 @@ ______________________________________________________________________
 
 ```bash
 # Clone and activate
-git clone https://github.com/beecave-homelab/insanely-fast-whisper-rocm.git
-cd insanely-fast-whisper-rocm
+git clone https://github.com/homeserverhq/halospeak.git
+cd halospeak
 ```
 
 **Use Docker (recommended):**
@@ -92,14 +92,15 @@ ______________________________________________________________________
 
 ## Version Summary
 
-### 🏷️ **Current Version: v2.3.0** *(17-07-2026)*
+### 🏷️ **Current Version: v3.0.0** *(06-11-2026)*
 
-**Latest improvements**: Diarization hardening with ROCm/MIOpen GPU→CPU fallback, centralized environment variable access, configurable HSA override, BetterTransformer removal, and local CI reviewer tooling.
+**Latest improvements**: Full HaloSpeak rebrand, `halospeak` Python package and CLI namespace, new logo and independent-fork provenance, plus the v2.3.0 diarization and ROCm hardening work.
 
 ### 📊 **Release Overview**
 
 | Version | Date | Type | Key Features |
 | -- | -- | -- | -- |
+| **v3.0.0** | 06-11-2026 | 🔄 Major | HaloSpeak rebrand, `halospeak` namespace/CLI/config paths, logo, provenance and trademark separation |
 | **v2.3.0** | 17-07-2026 | ✨ Minor | Diarization hardening, ROCm/MIOpen fallback, env centralization, BetterTransformer removal, configurable HSA override |
 | **v2.2.0** | 26-04-2026 | ✨ Minor | End-to-end speaker diarization across API/CLI/WebUI, plus robustness fixes and new test coverage |
 | **v2.1.5** | 19-02-2026 | 🐛 Patch | ROCm 7.0 Docker requirements alignment, ROCm torch/torchaudio pins |
@@ -186,15 +187,15 @@ ______________________________________________________________________
 - **Modular Design**: Split core, audio, API, CLI, WebUI, and utils
 - **Error Handling**: Layered, type-specific, with full trace logging
 - **Native SDPA Acceleration vs. BetterTransformer**: This project uses the native Scaled Dot Product Attention (SDPA) available in PyTorch 2.0+ and `transformers` as its primary method for accelerating the Whisper model's attention mechanism. This is achieved by setting `attn_implementation="sdpa"` when loading the model.
-- **OOM Recovery Orchestration (GPU -> CPU fallback)**: The core transcription path is wrapped by an OOM-aware orchestrator ([`core/orchestrator.py`](insanely_fast_whisper_rocm/core/orchestrator.py)) that implements deterministic recovery actions:
+- **OOM Recovery Orchestration (GPU -> CPU fallback)**: The core transcription path is wrapped by an OOM-aware orchestrator ([`core/orchestrator.py`](halospeak/core/orchestrator.py)) that implements deterministic recovery actions:
 
 ______________________________________________________________________
 
 ## Project Structure
 
 ```md
-➜  insanely-fast-whisper-rocm git:(dev) ✗ scripts/exa_codebase_tree.sh insanely_fast_whisper_rocm 
-insanely_fast_whisper_rocm
+➜  halospeak git:(dev) ✗ scripts/exa_codebase_tree.sh halospeak
+halospeak
 ├── __init__.py
 ├── __main__.py
 ├── api
@@ -285,13 +286,13 @@ The codebase automatically enables `sdpa` for any GPU-based device (`cuda`, `mps
 
 ### OOM Recovery Orchestration (GPU -> CPU fallback)
 
-The core transcription path is wrapped by an OOM-aware orchestrator ([`core/orchestrator.py`](insanely_fast_whisper_rocm/core/orchestrator.py)) that implements deterministic recovery actions:
+The core transcription path is wrapped by an OOM-aware orchestrator ([`core/orchestrator.py`](halospeak/core/orchestrator.py)) that implements deterministic recovery actions:
 
 - First `InferenceOOMError`: retry on GPU with batch size halved (down to `MIN_BATCH_SIZE`).
-- Subsequent GPU OOMs, or any `ModelLoadingOOMError`: switch to CPU (`dtype=float32`, `batch_size<=2`, `chunk_length<=15`) and invalidate cached GPU backends via [`invalidate_gpu_cache()`](insanely_fast_whisper_rocm/core/backend_cache.py).
+- Subsequent GPU OOMs, or any `ModelLoadingOOMError`: switch to CPU (`dtype=float32`, `batch_size<=2`, `chunk_length<=15`) and invalidate cached GPU backends via [`invalidate_gpu_cache()`](halospeak/core/backend_cache.py).
 - Each attempt is recorded in `result["orchestrator_attempts"]` for UI/API visibility.
 
-The OOM signatures are parsed for CUDA/HIP/ROCm in [`core/oom_utils.py`](insanely_fast_whisper_rocm/core/oom_utils.py) and exercised in unit tests under `tests/core/`.
+The OOM signatures are parsed for CUDA/HIP/ROCm in [`core/oom_utils.py`](halospeak/core/oom_utils.py) and exercised in unit tests under `tests/core/`.
 
 ______________________________________________________________________
 
@@ -335,34 +336,34 @@ ______________________________________________________________________
 
 ### Configuration Files & Loading
 
-The application uses a hierarchical approach for loading `.env` files, managed by [insanely_fast_whisper_rocm/utils/env_loader.py](insanely_fast_whisper_rocm/utils/env_loader.py) and accessed via [insanely_fast_whisper_rocm/utils/constants.py](insanely_fast_whisper_rocm/utils/constants.py).
+The application uses a hierarchical approach for loading `.env` files, managed by [halospeak/utils/env_loader.py](halospeak/utils/env_loader.py) and accessed via [halospeak/utils/constants.py](halospeak/utils/constants.py).
 
 1. **Project `.env`**: Located at the project root (e.g., `/path/to/project/.env`). This file can define project-specific defaults.
-2. **User-specific `.env`**: Located at `~/.config/insanely-fast-whisper-rocm/.env`. This file is for user-specific overrides and sensitive information (like API keys).
+2. **User-specific `.env`**: Located at `~/.config/halospeak/.env`. This file is for user-specific overrides and sensitive information (like API keys).
 
 **Loading Order & Override:**
 
 - The project root `.env` is loaded first.
-- The user-specific `~/.config/insanely-fast-whisper-rocm/.env` is loaded second and **will override** any variables previously set by the project `.env` or system environment variables.
+- The user-specific `~/.config/halospeak/.env` is loaded second and **will override** any variables previously set by the project `.env` or system environment variables.
 
 **Key Configuration Files:**
 
 - **[setup script](scripts/setup_config.py)**: A template file in the project root. Users should copy this to create their configuration files.
-- **`~/.config/insanely-fast-whisper-rocm/.env`**: The primary user-specific configuration file. This is the recommended place for all user customizations.
+- **`~/.config/halospeak/.env`**: The primary user-specific configuration file. This is the recommended place for all user customizations.
 - **Project `.env`** (Optional): Can be used for development-specific settings or non-sensitive project defaults.
-- **[insanely_fast_whisper_rocm/utils/constants.py](insanely_fast_whisper_rocm/utils/constants.py)**: Defines and provides centralized access to all configuration variables after they are loaded from the environment and `.env` files. This includes the `USE_READABLE_SUBTITLES` flag, which defaults to `true`.
-- **[insanely_fast_whisper_rocm/utils/env_loader.py](insanely_fast_whisper_rocm/utils/env_loader.py)**: Contains the logic for loading `.env` files hierarchically and managing debug print statements based on `LOG_LEVEL` or CLI flags.
-- **[logging_config.yaml](insanely_fast_whisper_rocm/logging_config.yaml)**: Configures the application's logging behavior.
+- **[halospeak/utils/constants.py](halospeak/utils/constants.py)**: Defines and provides centralized access to all configuration variables after they are loaded from the environment and `.env` files. This includes the `USE_READABLE_SUBTITLES` flag, which defaults to `true`.
+- **[halospeak/utils/env_loader.py](halospeak/utils/env_loader.py)**: Contains the logic for loading `.env` files hierarchically and managing debug print statements based on `LOG_LEVEL` or CLI flags.
+- **[logging_config.yaml](halospeak/logging_config.yaml)**: Configures the application's logging behavior.
 
 **User Configuration Setup Script:**
 
-A utility script [`scripts/setup_config.py`](scripts/setup_config.py) is provided to help users create their user-specific configuration file. It copies the project's `.env.example` file to `~/.config/insanely-fast-whisper-rocm/.env`.
+A utility script [`scripts/setup_config.py`](scripts/setup_config.py) is provided to help users create their user-specific configuration file. It copies the project's `.env.example` file to `~/.config/halospeak/.env`.
 
 The script performs the following actions:
 
 - Checks if `.env.example` exists in the project root.
-- Creates the `~/.config/insanely-fast-whisper-rocm/` directory if it doesn't already exist.
-- Copies `.env.example` to `~/.config/insanely-fast-whisper-rocm/.env`.
+- Creates the `~/.config/halospeak/` directory if it doesn't already exist.
+- Copies `.env.example` to `~/.config/halospeak/.env`.
 - Prompts the user for confirmation if a configuration file already exists at the destination, to prevent accidental overwrites.
 - Informs the user to edit the newly created file to input their specific settings, such as `HF_TOKEN` for gated models.
 
@@ -380,7 +381,7 @@ Or directly:
 python scripts/setup_config.py
 ```
 
-**Important**: No direct `os.getenv()` calls should be made outside of [insanely_fast_whisper_rocm/utils/env_loader.py](insanely_fast_whisper_rocm/utils/env_loader.py) or [insanely_fast_whisper_rocm/utils/constants.py](insanely_fast_whisper_rocm/utils/constants.py) to ensure consistent configuration loading.
+**Important**: No direct `os.getenv()` calls should be made outside of [halospeak/utils/env_loader.py](halospeak/utils/env_loader.py) or [halospeak/utils/constants.py](halospeak/utils/constants.py) to ensure consistent configuration loading.
 
 ### PyTorch Allocator Configuration (Automatic Version Detection)
 
@@ -393,7 +394,7 @@ The application implements automatic detection and configuration of PyTorch's me
 
 **Implementation Details:**
 
-The automatic detection logic is implemented in [insanely_fast_whisper_rocm/utils/constants.py](insanely_fast_whisper_rocm/utils/constants.py):
+The automatic detection logic is implemented in [halospeak/utils/constants.py](halospeak/utils/constants.py):
 
 - **Version Detection**:
 
@@ -477,7 +478,7 @@ You can start the API server with various options to customize its behavior:
 pdm run api
 
 # Equivalent module entrypoint
-python -m insanely_fast_whisper_rocm
+python -m halospeak
 
 # See all available options and help
 pdm run api --help
@@ -503,8 +504,8 @@ pdm run api --debug
 # Launch with SSL (ensure dummy.key and dummy.crt exist or provide paths)
 # pdm run api --ssl-keyfile dummy.key --ssl-certfile dummy.crt
 
-# Note: `python -m insanely_fast_whisper_rocm.api` starts the API with
-# defaults from `insanely_fast_whisper_rocm/api/__main__.py` and does not
+# Note: `python -m halospeak.api` starts the API with
+# defaults from `halospeak/api/__main__.py` and does not
 # expose the Click options shown above.
 
 > **Note:** Docker Compose defaults map the API to port **8888** (production) and
@@ -547,13 +548,13 @@ The Gradio WebUI offers an interactive, browser-based experience—ideal for bat
 
 ```bash
 # Basic WebUI launch
-python -m insanely_fast_whisper_rocm.webui
+python -m halospeak.webui
 
 # With debug logging (recommended for development or troubleshooting)
-python -m insanely_fast_whisper_rocm.webui --debug
+python -m halospeak.webui --debug
 
 # Custom host and port
-python -m insanely_fast_whisper_rocm.webui --port 7860 --host 0.0.0.0 --debug
+python -m halospeak.webui --port 7860 --host 0.0.0.0 --debug
 
 > **Note:** Docker Compose defaults map the WebUI to port **7860** (production)
 > and **7862** (dev). Use `WEBUI_PORT` / `DEV_WEBUI_PORT` to align.
@@ -594,13 +595,13 @@ Use the `--benchmark` flag to measure processing speed and collect hardware stat
 
 ```bash
 # Quick benchmark (writes benchmark JSON; transcript export is unchanged by --benchmark)
-python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3 --benchmark
+python -m halospeak.cli transcribe audio.mp3 --benchmark
 
 # Benchmark and also export transcript as TXT
-python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3 --benchmark --export-format txt
+python -m halospeak.cli transcribe audio.mp3 --benchmark --export-format txt
 
 # Pass arbitrary metadata
-python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3 --benchmark --benchmark-extra precision=fp16 tokenizer=fast
+python -m halospeak.cli transcribe audio.mp3 --benchmark --benchmark-extra precision=fp16 tokenizer=fast
 ```
 
 **Key behaviors**:
@@ -619,7 +620,7 @@ The JSON includes runtime stats, total elapsed time, system info (OS, Python, To
 
 When benchmarking SRT outputs, `_handle_output_and_benchmarks()` stores a
 `format_quality.srt` block generated by `compute_srt_quality()` in
-`insanely_fast_whisper_rocm/utils/srt_quality.py`. The score ranges from 0.0 to
+`halospeak/utils/srt_quality.py`. The score ranges from 0.0 to
 1.0, with penalties applied for:
 
 - **Overlaps**: Any overlapping subtitles subtract a large fixed amount because
@@ -672,22 +673,22 @@ The `--export-format` option controls the output file type. The following format
 
 ```bash
 # Transcribe and get a JSON file (default)
-python -m insanely_fast_whisper_rocm.cli transcribe audio_file.mp3
+python -m halospeak.cli transcribe audio_file.mp3
 
 # Transcribe and get a TXT file
-python -m insanely_fast_whisper_rocm.cli transcribe audio_file.mp3 --export-format txt
+python -m halospeak.cli transcribe audio_file.mp3 --export-format txt
 
 # Transcribe and get all formats (JSON, SRT, TXT)
-python -m insanely_fast_whisper_rocm.cli transcribe audio_file.mp3 --export-format all
+python -m halospeak.cli transcribe audio_file.mp3 --export-format all
 
 # Translate and get an SRT file
-python -m insanely_fast_whisper_rocm.cli translate audio_file.mp3 --export-format srt
+python -m halospeak.cli translate audio_file.mp3 --export-format srt
 
 # Transcribe with debug logging enabled
-python -m insanely_fast_whisper_rocm.cli transcribe audio_file.mp3 --debug
+python -m halospeak.cli transcribe audio_file.mp3 --debug
 ```
 
-Consult `python -m insanely_fast_whisper_rocm.cli --help` for a full list of commands and options.
+Consult `python -m halospeak.cli --help` for a full list of commands and options.
 
 ______________________________________________________________________
 
@@ -701,7 +702,7 @@ Comprehensive DEBUG-level logging has been instrumented across the transcription
 
 ```bash
 # Enable debug logging with --debug flag
-python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3 --debug
+python -m halospeak.cli transcribe audio.mp3 --debug
 ```
 
 **Environment Variable:**
@@ -709,7 +710,7 @@ python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3 --debug
 ```bash
 # Set LOG_LEVEL to DEBUG
 export LOG_LEVEL=DEBUG
-python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3
+python -m halospeak.cli transcribe audio.mp3
 ```
 
 ### Instrumented Modules
@@ -746,14 +747,14 @@ All debug logging follows these principles:
 ### Example Output
 
 ```text
-DEBUG:insanely_fast_whisper_rocm.core.formatters:_result_to_words: examining result with chunks=True, segments=True
-DEBUG:insanely_fast_whisper_rocm.core.formatters:Found 142 potential words from chunks, avg_duration=0.234s
-DEBUG:insanely_fast_whisper_rocm.core.segmentation:segment_words: processing 142 input words
-DEBUG:insanely_fast_whisper_rocm.core.segmentation:After expansion: 145 words
-DEBUG:insanely_fast_whisper_rocm.core.segmentation:Split into 8 sentence chunks
-DEBUG:insanely_fast_whisper_rocm.core.segmentation:Before merge_short_segments: 12 segments
-DEBUG:insanely_fast_whisper_rocm.core.segmentation:After merge_short_segments: 10 segments
-DEBUG:insanely_fast_whisper_rocm.core.segmentation:segment_words returning 10 final segments
+DEBUG:halospeak.core.formatters:_result_to_words: examining result with chunks=True, segments=True
+DEBUG:halospeak.core.formatters:Found 142 potential words from chunks, avg_duration=0.234s
+DEBUG:halospeak.core.segmentation:segment_words: processing 142 input words
+DEBUG:halospeak.core.segmentation:After expansion: 145 words
+DEBUG:halospeak.core.segmentation:Split into 8 sentence chunks
+DEBUG:halospeak.core.segmentation:Before merge_short_segments: 12 segments
+DEBUG:halospeak.core.segmentation:After merge_short_segments: 10 segments
+DEBUG:halospeak.core.segmentation:segment_words returning 10 final segments
 ```
 
 ______________________________________________________________________
@@ -1094,7 +1095,7 @@ Or programmatically in tests:
 ```python
 from unittest.mock import patch
 
-with patch("insanely_fast_whisper_rocm.utils.constants.MAX_LINE_CHARS", 50):
+with patch("halospeak.utils.constants.MAX_LINE_CHARS", 50):
     result = SrtFormatter.format(asr_result)
 ```
 
@@ -1217,7 +1218,7 @@ Example:
 
 ```bash
 # Only show the progress bar and the final saved path(s)
-python -m insanely_fast_whisper_rocm.cli transcribe audio.mp3 \
+python -m halospeak.cli transcribe audio.mp3 \
   --model openai/whisper-small \
   --batch-size 12 \
   --export-format txt \
@@ -1474,8 +1475,8 @@ All imports now follow **absolute import** conventions for improved IDE support 
 
 ```python
 # Good - Absolute imports
-from insanely_fast_whisper_rocm.core.pipeline import WhisperPipeline
-from insanely_fast_whisper_rocm.utils.constants import WHISPER_MODEL
+from halospeak.core.pipeline import WhisperPipeline
+from halospeak.utils.constants import WHISPER_MODEL
 
 # Deprecated - Relative imports (removed in v0.2.1)
 # from .core.pipeline import WhisperPipeline

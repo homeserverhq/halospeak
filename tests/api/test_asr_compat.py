@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.responses import JSONResponse
 
-from insanely_fast_whisper_rocm.api import routes
+from halospeak.api import routes
 
 
 def _call_asr_compat(

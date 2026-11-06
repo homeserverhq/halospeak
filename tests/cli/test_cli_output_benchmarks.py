@@ -3,8 +3,8 @@
 from pathlib import Path
 from unittest.mock import ANY, Mock, patch
 
-from insanely_fast_whisper_rocm.cli.commands import _handle_output_and_benchmarks
-from insanely_fast_whisper_rocm.core.progress import ProgressCallback
+from halospeak.cli.commands import _handle_output_and_benchmarks
+from halospeak.core.progress import ProgressCallback
 
 
 class TestOutputAndBenchmarks:
@@ -21,7 +21,7 @@ class TestOutputAndBenchmarks:
         }
         self.total_time = 2.0
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_export_txt__preserves_diarized_metadata(
         self, mock_formatters: Mock
     ) -> None:
@@ -66,7 +66,7 @@ class TestOutputAndBenchmarks:
         assert formatter_payload["diarized"] is True
         assert formatter_payload["chunks"][0]["speaker"] == "SPEAKER_00"
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_export_json_default(self, mock_formatters: Mock) -> None:
         """Test default JSON export to transcripts directory."""
         mock_formatter = Mock()
@@ -98,7 +98,7 @@ class TestOutputAndBenchmarks:
                 mock_formatter.format.assert_called_once()
                 mock_write.assert_called_once()
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_export_multiple_formats_all(self, mock_formatters: Mock) -> None:
         """Test exporting all formats."""
         mock_json_formatter = Mock()
@@ -152,7 +152,7 @@ class TestOutputAndBenchmarks:
                 assert mock_srt_formatter.format.call_count == 1
                 assert mock_write.call_count == 3
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_custom_output_path(self, mock_formatters: Mock) -> None:
         """Test custom output file path."""
         mock_formatter = Mock()
@@ -186,7 +186,7 @@ class TestOutputAndBenchmarks:
                 assert args[0][0] == "Test content"
                 assert args[1]["encoding"] == "utf-8"
 
-    @patch("insanely_fast_whisper_rocm.benchmarks.collector.BenchmarkCollector")
+    @patch("halospeak.benchmarks.collector.BenchmarkCollector")
     def test_benchmark_enabled(self, mock_collector_class: Mock) -> None:
         """Test benchmark collection when enabled."""
         mock_collector = Mock()
@@ -218,7 +218,7 @@ class TestOutputAndBenchmarks:
                     mock_collector.collect.assert_called_once()
                     mock_secho.assert_called()
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_file_write_error_handling(self, mock_formatters: Mock) -> None:
         """Test handling of file write errors."""
         mock_formatter = Mock()
@@ -253,7 +253,7 @@ class TestOutputAndBenchmarks:
                     assert error_call[1]["fg"] == "red"
                     assert error_call[1]["err"] is True
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_progress_reporting(self, mock_formatters: Mock) -> None:
         """Test progress reporting during export."""
         mock_formatter = Mock()
@@ -286,7 +286,7 @@ class TestOutputAndBenchmarks:
                 mock_progress.on_export_started.assert_called_once_with(1)
                 mock_progress.on_export_item_done.assert_called_once_with(0, ANY)
 
-    @patch("insanely_fast_whisper_rocm.cli.commands.cleanup_temp_files")
+    @patch("halospeak.cli.commands.cleanup_temp_files")
     def test_temp_file_cleanup(self, mock_cleanup: Mock) -> None:
         """Test cleanup of temporary files."""
         temp_files = [Path("temp1.wav"), Path("temp2.wav")]
@@ -313,8 +313,8 @@ class TestOutputAndBenchmarks:
                 # Verify temp file cleanup was called
                 mock_cleanup.assert_called_once_with([str(f) for f in temp_files])
 
-    @patch("insanely_fast_whisper_rocm.benchmarks.collector.BenchmarkCollector")
-    @patch("insanely_fast_whisper_rocm.cli.commands.FORMATTERS")
+    @patch("halospeak.benchmarks.collector.BenchmarkCollector")
+    @patch("halospeak.cli.commands.FORMATTERS")
     def test_benchmark_includes_srt_quality(
         self, mock_formatters: Mock, mock_collector_class: Mock
     ) -> None:
@@ -390,7 +390,7 @@ class TestOutputAndBenchmarks:
             "sample_offenders",
         }
 
-    @patch("insanely_fast_whisper_rocm.benchmarks.collector.BenchmarkCollector")
+    @patch("halospeak.benchmarks.collector.BenchmarkCollector")
     def test_benchmark_path_printed_even_when_quiet(
         self, mock_collector_class: Mock
     ) -> None:

@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from tests.api.conftest import DUMMY_WAV_HEADER
 
-from insanely_fast_whisper_rocm.core.errors import DiarizationError
+from halospeak.core.errors import DiarizationError
 
 
 @pytest.fixture()
@@ -35,7 +35,7 @@ def _mock_diarize_ok() -> Iterator[None]:
         "diarized": True,
     }
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.diarize",
+        "halospeak.core.integrations.diarization.diarize",
         return_value=diarized_result,
     ):
         yield
@@ -49,7 +49,7 @@ def _mock_diarize_error() -> Iterator[None]:
         None: Control returns to the test after the patch is applied.
     """
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.diarize",
+        "halospeak.core.integrations.diarization.diarize",
         side_effect=DiarizationError(
             "HF_TOKEN required",
             model="pyannote/speaker-diarization-3.1",
@@ -146,7 +146,7 @@ def test_post_transcriptions__updates_saved_json_after_post_processing(
 
     audio_file = io.BytesIO(DUMMY_WAV_HEADER)
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.diarize",
+        "halospeak.core.integrations.diarization.diarize",
         side_effect=lambda result, **_: {
             **result,
             "chunks": [
@@ -248,7 +248,7 @@ def test_post_transcriptions__rejects_invalid_speaker_config(
     """Invalid speaker-count options return HTTP 400 before diarization runs."""
     audio_file = io.BytesIO(DUMMY_WAV_HEADER)
     with patch(
-        "insanely_fast_whisper_rocm.core.integrations.diarization.diarize"
+        "halospeak.core.integrations.diarization.diarize"
     ) as mock_diarize:
         response = client.post(
             "/v1/audio/transcriptions",
@@ -290,7 +290,7 @@ def test_post_transcriptions__sets_stabilized_flag_on_success(
 ) -> None:
     """verbose_json includes stabilized: true when stabilization succeeds."""
     with patch(
-        "insanely_fast_whisper_rocm.api.routes.stabilize_timestamps",
+        "halospeak.api.routes.stabilize_timestamps",
         return_value={"text": "Hello", "chunks": []},
     ):
         audio_file = io.BytesIO(DUMMY_WAV_HEADER)
@@ -313,7 +313,7 @@ def test_stabilized_flag_on_failure(
 ) -> None:
     """verbose_json includes stabilized: false when stabilization fails."""
     with patch(
-        "insanely_fast_whisper_rocm.api.routes.stabilize_timestamps",
+        "halospeak.api.routes.stabilize_timestamps",
         side_effect=RuntimeError("stabilization crashed"),
     ):
         audio_file = io.BytesIO(DUMMY_WAV_HEADER)

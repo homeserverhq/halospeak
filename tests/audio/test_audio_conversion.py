@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from insanely_fast_whisper_rocm.audio.conversion import (
+from halospeak.audio.conversion import (
     DEFAULT_CHANNELS,
     DEFAULT_CODEC,
     DEFAULT_SAMPLE_RATE,
@@ -66,7 +66,7 @@ def test_ensure_wav_non_wav_file_conversion(mock_ffmpeg_chain: dict[str, Mock]) 
     """Test ensure_wav converts non-WAV files to WAV."""
     fixture_path = Path(__file__).parent / "fixtures" / "test_clip.mp3"
 
-    with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg") as mock_ffmpeg:
+    with patch("halospeak.audio.conversion.ffmpeg") as mock_ffmpeg:
         mock_ffmpeg.input.return_value = mock_ffmpeg_chain["input"]
 
         result = ensure_wav(fixture_path)
@@ -93,7 +93,7 @@ def test_ensure_wav_custom_sample_rate(mock_ffmpeg_chain: dict[str, Mock]) -> No
     fixture_path = Path(__file__).parent / "fixtures" / "test_clip.mp3"
     custom_sample_rate = 44100
 
-    with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg") as mock_ffmpeg:
+    with patch("halospeak.audio.conversion.ffmpeg") as mock_ffmpeg:
         mock_ffmpeg.input.return_value = mock_ffmpeg_chain["input"]
 
         result = ensure_wav(fixture_path, sample_rate=custom_sample_rate)
@@ -110,7 +110,7 @@ def test_ensure_wav_custom_channels(mock_ffmpeg_chain: dict[str, Mock]) -> None:
     fixture_path = Path(__file__).parent / "fixtures" / "test_clip.mp3"
     custom_channels = 2
 
-    with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg") as mock_ffmpeg:
+    with patch("halospeak.audio.conversion.ffmpeg") as mock_ffmpeg:
         mock_ffmpeg.input.return_value = mock_ffmpeg_chain["input"]
 
         result = ensure_wav(fixture_path, channels=custom_channels)
@@ -126,7 +126,7 @@ def test_ensure_wav_pathlib_input(mock_ffmpeg_chain: dict[str, Mock]) -> None:
     """Test ensure_wav handles Path objects as input."""
     fixture_path = Path(__file__).parent / "fixtures" / "test_clip.mp3"
 
-    with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg") as mock_ffmpeg:
+    with patch("halospeak.audio.conversion.ffmpeg") as mock_ffmpeg:
         mock_ffmpeg.input.return_value = mock_ffmpeg_chain["input"]
 
         result = ensure_wav(fixture_path)
@@ -156,7 +156,7 @@ def test_ensure_wav_ffmpeg_unavailable() -> None:
     fixture_path = Path(__file__).parent / "fixtures" / "test_clip.mp3"
 
     # Mock ffmpeg as None
-    with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg", None):
+    with patch("halospeak.audio.conversion.ffmpeg", None):
         result = ensure_wav(fixture_path)
 
         # Should create a WAV file (placeholder copy)
@@ -193,7 +193,7 @@ def test_ensure_wav_ffmpeg_error() -> None:
         tmp_path = tmp.name
 
     try:
-        with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg") as mock_ffmpeg:
+        with patch("halospeak.audio.conversion.ffmpeg") as mock_ffmpeg:
             mock_error = FFmpegError("FFmpeg conversion failed")
 
             # Mock the chain to raise an error
@@ -219,7 +219,7 @@ def test_ensure_wav_output_not_created() -> None:
         tmp_path = tmp.name
 
     try:
-        with patch("insanely_fast_whisper_rocm.audio.conversion.ffmpeg") as mock_ffmpeg:
+        with patch("halospeak.audio.conversion.ffmpeg") as mock_ffmpeg:
             mock_ffmpeg_input = Mock()
             mock_ffmpeg_output = Mock()
 

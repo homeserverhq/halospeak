@@ -5,10 +5,11 @@ Validates version resolution, public API exports, and package metadata handling.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
-import insanely_fast_whisper_rocm
-from insanely_fast_whisper_rocm import (
+import halospeak
+from halospeak import (
     ASRPipeline,
     __version__,
     cleanup_temp_files,
@@ -27,8 +28,8 @@ def test_init__version__is_defined() -> None:
 
 def test_init__all_exports__are_accessible() -> None:
     """All items in __all__ should be accessible from the package."""
-    for item in insanely_fast_whisper_rocm.__all__:
-        assert hasattr(insanely_fast_whisper_rocm, item)
+    for item in halospeak.__all__:
+        assert hasattr(halospeak, item)
 
 
 def test_init__asr_pipeline__is_exported() -> None:
@@ -54,11 +55,11 @@ def test_resolve_package_version__fallback_when_metadata_not_found() -> None:
     from importlib import metadata
 
     # Mock metadata.version to raise PackageNotFoundError
-    with patch("insanely_fast_whisper_rocm.metadata.version") as mock_version:
+    with patch("halospeak.metadata.version") as mock_version:
         mock_version.side_effect = metadata.PackageNotFoundError
 
         # Re-import the module to trigger the version resolution
-        from insanely_fast_whisper_rocm import _resolve_package_version
+        from halospeak import _resolve_package_version
 
         result = _resolve_package_version()
 
@@ -74,12 +75,12 @@ def test_resolve_package_version__uses_api_version_from_constants() -> None:
     # Mock metadata.version to raise PackageNotFoundError
     # and ensure constants.API_VERSION exists
     with (
-        patch("insanely_fast_whisper_rocm.metadata.version") as mock_version,
-        patch("insanely_fast_whisper_rocm.utils.constants.API_VERSION", "1.2.3"),
+        patch("halospeak.metadata.version") as mock_version,
+        patch("halospeak.utils.constants.API_VERSION", "1.2.3"),
     ):
         mock_version.side_effect = metadata.PackageNotFoundError
 
-        from insanely_fast_whisper_rocm import _resolve_package_version
+        from halospeak import _resolve_package_version
 
         result = _resolve_package_version()
 
@@ -94,14 +95,14 @@ def test_resolve_package_version__fallback_to_dev_version() -> None:
 
     # Mock metadata.version to raise PackageNotFoundError
     # and mock constants module without API_VERSION
-    with patch("insanely_fast_whisper_rocm.metadata.version") as mock_version:
+    with patch("halospeak.metadata.version") as mock_version:
         mock_version.side_effect = metadata.PackageNotFoundError
 
         # Create a mock constants module without API_VERSION
         mock_constants = MagicMock(spec=[])  # Empty spec means no attributes
 
-        with patch("insanely_fast_whisper_rocm.constants", mock_constants):
-            from insanely_fast_whisper_rocm import _resolve_package_version
+        with patch("halospeak.constants", mock_constants):
+            from halospeak import _resolve_package_version
 
             result = _resolve_package_version()
 
@@ -112,4 +113,11 @@ def test_resolve_package_version__fallback_to_dev_version() -> None:
 def test_init__benchmarks__is_exported() -> None:
     """Benchmarks module should be accessible from the package root."""
     # benchmarks may be None if not available
-    assert hasattr(insanely_fast_whisper_rocm, "benchmarks")
+    assert hasattr(halospeak, "benchmarks")
+
+
+def test_logo_asset__is_packaged() -> None:
+    """The HaloSpeak logo should ship inside the Python package."""
+    logo_path = Path(halospeak.__file__).resolve().parent / "assets" / "halospeak.png"
+    assert logo_path.is_file()
+    assert logo_path.stat().st_size > 0

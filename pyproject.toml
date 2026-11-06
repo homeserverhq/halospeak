@@ -2,12 +2,19 @@
 # Project Metadata #
 ####################
 [project]
-name = "insanely-fast-whisper-rocm"
-version = "2.3.0"
-description = "A ROCm-optimized Whisper toolkit with API, CLI, and WebUI interfaces for transcription, translation, and speaker diarization"
+name = "halospeak"
+version = "3.0.0"
+description = "HaloSpeak: a ROCm-optimized Whisper toolkit with API, CLI, and WebUI interfaces for transcription, translation, and speaker diarization"
 requires-python = "~=3.10"
+license = {text = "MIT"}
 authors = [
-    {name = "elvee"},
+    {name = "HaloSpeak contributors"},
+]
+keywords = ["whisper", "rocm", "asr", "transcription", "amd", "gradio", "fastapi"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
 dependencies = [
     "anyio==4.14.2",
@@ -37,9 +44,15 @@ dependencies = [
 # Project Entry Points #
 ########################
 [project.scripts]
-insanely-fast-whisper-cli = "insanely_fast_whisper_rocm.cli.cli:main"
-insanely-fast-whisper-webui = "insanely_fast_whisper_rocm.webui.app:launch_webui"
-insanely-fast-whisper-rocm = "insanely_fast_whisper_rocm.__main__:main"
+halospeak-cli = "halospeak.cli.cli:main"
+halospeak-webui = "halospeak.webui.app:launch_webui"
+halospeak = "halospeak.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/homeserverhq/halospeak"
+Repository = "https://github.com/homeserverhq/halospeak"
+Issues = "https://github.com/homeserverhq/halospeak/issues"
+Upstream = "https://github.com/beecave-homelab/insanely-fast-whisper-rocm"
 
 ##############################
 # Optional Dependency Groups #
@@ -237,11 +250,11 @@ distribution = true
 
 
 [tool.pdm.scripts]
-webui = "insanely-fast-whisper-webui"
-webui-debug = "insanely-fast-whisper-webui --debug"
-api = "insanely-fast-whisper-rocm"
-api-debug = "insanely-fast-whisper-rocm -v"
-cli = "insanely-fast-whisper-cli"
+webui = "halospeak-webui"
+webui-debug = "halospeak-webui --debug"
+api = "halospeak"
+api-debug = "halospeak -v"
+cli = "halospeak-cli"
 
 setup-config = {call = "scripts.setup_config:main"}
 hf-models = {call = "scripts.hf_models:_main"}
@@ -250,7 +263,7 @@ lint = "ruff check ."
 format = "ruff format ."
 fix = "ruff check --fix ."
 test = "pytest -q"
-test-cov = "pytest --cov=insanely_fast_whisper_rocm --cov-report=term-missing:skip-covered --cov-report=xml"
+test-cov = "pytest --cov=halospeak --cov-report=term-missing:skip-covered --cov-report=xml"
 
 local-ci = "scripts/local-ci.sh"
 
@@ -292,7 +305,7 @@ excludes = ["torch==2.0.1", "torch==2.3.0", "torch==2.4.1", "torch==2.7.1", "tor
 line-length = 88
 target-version = "py310"                # adjust if you target 3.9/3.12
 preview = true                          # needed for DOC + FA rules
-src = ["insanely_fast_whisper_rocm"]     # first-party package path
+src = ["halospeak"]     # first-party package path
 
 
 [tool.ruff.lint]
@@ -325,7 +338,7 @@ section-order = [
   "first-party",
   "local-folder",
 ]
-known-first-party = ["insanely_fast_whisper_rocm"]
+known-first-party = ["halospeak"]
 
 
 [tool.ruff.lint.per-file-ignores]
@@ -336,7 +349,7 @@ known-first-party = ["insanely_fast_whisper_rocm"]
 # Pytest & Coverage #
 #####################
 [tool.pytest.ini_options]
-# addopts = "-q --cov=insanely_fast_whisper_rocm --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml --cov-report=html --cov-fail-under=85"
+# addopts = "-q --cov=halospeak --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml --cov-report=html --cov-fail-under=85"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 filterwarnings = [

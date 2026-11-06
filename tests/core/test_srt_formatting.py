@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from insanely_fast_whisper_rocm.core.formatters import SrtFormatter
-from insanely_fast_whisper_rocm.core.segmentation import Word, segment_words
-from insanely_fast_whisper_rocm.utils import constants
+from halospeak.core.formatters import SrtFormatter
+from halospeak.core.segmentation import Word, segment_words
+from halospeak.utils import constants
 
 
 class TestSrtFormattingEnhancements:

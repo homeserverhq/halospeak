@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from insanely_fast_whisper_rocm.api.models import (
+from halospeak.api.models import (
     TranscriptionChunk,
     TranscriptionResponse,
 )
