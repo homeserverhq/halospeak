@@ -43,7 +43,7 @@ from halospeak.webui.handlers import (
 logger = logging.getLogger("halospeak.webui.ui")
 
 _STATUS_STREAM_DONE = object()
-_LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "halospeak.png"
+LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "halospeak.png"
 
 
 def _logo_data_uri() -> str:
@@ -53,9 +53,9 @@ def _logo_data_uri() -> str:
         str: Base64-encoded PNG data URI, or an empty string if unavailable.
     """
     try:
-        encoded = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
+        encoded = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
     except OSError:
-        logger.warning("HaloSpeak logo not found at %s", _LOGO_PATH)
+        logger.warning("HaloSpeak logo not found at %s", LOGO_PATH)
         return ""
     return f"data:image/png;base64,{encoded}"
 
@@ -471,15 +471,21 @@ def create_ui_components(
         title="HaloSpeak - Local WebUI",
     ) as demo:
         logo_uri = _logo_data_uri()
+        logo_markup = ""
         if logo_uri:
-            gr.HTML(
-                f'<div class="halospeak-header"><img src="{logo_uri}" '
-                'alt="HaloSpeak logo" /></div>'
+            logo_markup = (
+                f'<img src="{logo_uri}" alt="HaloSpeak logo" '
+                'style="width:32px !important;height:32px !important;'
+                "max-width:32px !important;max-height:32px !important;"
+                'object-fit:contain;border-radius:6px;margin:0;flex:0 0 auto;" />'
             )
-        gr.Markdown("# HaloSpeak")
-        gr.Markdown(
-            "An independent fork of insanely-fast-whisper-rocm. Not affiliated "
-            "with or endorsed by the upstream project."
+        gr.HTML(
+            '<div class="halospeak-header" '
+            'style="display:flex;align-items:center;gap:10px;padding:4px 0 0 0;">'
+            f"{logo_markup}"
+            '<h1 style="margin:0;font-size:1.5rem;line-height:1.2;'
+            'font-weight:700;">HaloSpeak</h1>'
+            "</div>"
         )
         gr.Markdown(
             "Transcribe or translate audio and video files using Whisper models "
@@ -651,16 +657,6 @@ def create_ui_components(
         )
 
     demo.css = """
-        .halospeak-header {
-            display: flex;
-            justify-content: center;
-            padding: 12px 0 0 0;
-        }
-        .halospeak-header img {
-            width: 112px;
-            height: 112px;
-            border-radius: 22px;
-        }
         .halospeak-shell {
             background: linear-gradient(180deg, #171717 0%, #101010 100%);
         }

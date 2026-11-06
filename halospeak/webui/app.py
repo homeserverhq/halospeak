@@ -18,7 +18,7 @@ from halospeak.utils.constants import (
     DEFAULT_VAD_THRESHOLD,
 )
 from halospeak.utils.download_hf_model import download_model_if_needed
-from halospeak.webui.ui import create_ui_components
+from halospeak.webui.ui import LOGO_PATH, create_ui_components
 
 # Configure logger
 logger = logging.getLogger("halospeak.webui.app")
@@ -135,9 +135,11 @@ def launch_webui(
             constants.DEFAULT_TRANSCRIPTS_DIR,
         ])
     )
+    favicon_path = str(LOGO_PATH) if LOGO_PATH.is_file() else None
     iface.launch(
         server_name=host,
         server_port=port,
         share=share,
         allowed_paths=allowed_paths,
+        favicon_path=favicon_path,
     )

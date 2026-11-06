@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 from click.testing import CliRunner
 
 from halospeak.webui.app import launch_webui
+from halospeak.webui.ui import LOGO_PATH
 
 
 class TestLaunchWebUI:
@@ -64,6 +65,7 @@ class TestLaunchWebUI:
             server_port=8080,
             share=False,
             allowed_paths=["temp_uploads", "transcripts"],
+            favicon_path=str(LOGO_PATH),
         )
 
     @patch("halospeak.webui.app.download_model_if_needed")
